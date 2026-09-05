@@ -11,10 +11,13 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma migrate reset --force"
   },
-  "prisma": { "seed": "tsx prisma/seed.ts" },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
   "dependencies": {
     "@prisma/client": "^6.1.0",
     "@shopnear/shared": "*",
+    "argon2": "^0.45.1",
     "dotenv": "^16.4.0"
   },
   "devDependencies": {
