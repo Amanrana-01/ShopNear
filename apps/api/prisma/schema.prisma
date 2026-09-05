@@ -1,0 +1,12 @@
+generator client {
+  provider        = "prisma-client-js"
+  // postgresqlExtensions unlocks `extensions = [...]` below; postgis and
+  // pg_trgm are declared so `prisma migrate` provisions them for us.
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis, pg_trgm]
+}
