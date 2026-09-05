@@ -105,6 +105,15 @@ async function cleanup() {
 
 describe('GET /api/search', () => {
   let originalWeights: Awaited<ReturnType<typeof getRankingWeights>>
+  // This suite runs whether or not the real seed data is present (test
+  // files execute in a single shared fork, and other suites truncate core
+  // tables mid-run — see the file header note). Real seeded products can
+  // also match "atta"/"aata"/"ata" via keyword containment or pg_trgm
+  // similarity, so every assertion below filters results down to *this
+  // suite's own fixture shops* rather than asserting on the raw, possibly
+  // seed-polluted result set.
+  const fixtureShopIds = new Set<string>()
+  const onlyOurs = <T extends { shopId: string }>(results: T[]) => results.filter((r) => fixtureShopIds.has(r.shopId))
 
   beforeAll(async () => {
     await clock.reset()
@@ -115,22 +124,25 @@ describe('GET /api/search', () => {
     // whose keywords include the literal spellings "atta"/"aata"/"ata" —
     // mirrors the real seed's Aashirvaad/Fortune/loose wheat flour rows,
     // but self-contained so this suite doesn't depend on `db:reset` output.
-    await makeShopWithProduct({
-      distanceMetres: 80, bearingDegrees: 10, keywords: ['atta', 'aata', 'ata', 'wheat flour'],
-      productName: 'Fixture Aashirvaad Atta 5 kg', price: 285, availability: 'IN_STOCK', ageMinutes: 10,
-    })
-    await makeShopWithProduct({
-      distanceMetres: 150, bearingDegrees: 90, keywords: ['atta', 'aata', 'ata', 'wheat flour'],
-      productName: 'Fixture Fortune Atta 5 kg', price: 265, availability: 'IN_STOCK', ageMinutes: 300,
-    })
-    await makeShopWithProduct({
-      distanceMetres: 300, bearingDegrees: 180, keywords: ['atta', 'aata', 'ata', 'wheat flour'],
-      productName: 'Fixture Loose Wheat Flour', price: 45, availability: 'OUT_OF_STOCK', ageMinutes: 60,
-    })
-    await makeShopWithProduct({
-      distanceMetres: 500, bearingDegrees: 270, keywords: ['atta', 'aata', 'ata', 'wheat flour'],
-      productName: 'Fixture Multigrain Atta 5 kg', price: 310, availability: 'UNKNOWN', ageMinutes: 5,
-    })
+    const fixtures = await Promise.all([
+      makeShopWithProduct({
+        distanceMetres: 80, bearingDegrees: 10, keywords: ['atta', 'aata', 'ata', 'wheat flour'],
+        productName: 'Fixture Aashirvaad Atta 5 kg', price: 285, availability: 'IN_STOCK', ageMinutes: 10,
+      }),
+      makeShopWithProduct({
+        distanceMetres: 150, bearingDegrees: 90, keywords: ['atta', 'aata', 'ata', 'wheat flour'],
+        productName: 'Fixture Fortune Atta 5 kg', price: 265, availability: 'IN_STOCK', ageMinutes: 300,
+      }),
+      makeShopWithProduct({
+        distanceMetres: 300, bearingDegrees: 180, keywords: ['atta', 'aata', 'ata', 'wheat flour'],
+        productName: 'Fixture Loose Wheat Flour', price: 45, availability: 'OUT_OF_STOCK', ageMinutes: 60,
+      }),
+      makeShopWithProduct({
+        distanceMetres: 500, bearingDegrees: 270, keywords: ['atta', 'aata', 'ata', 'wheat flour'],
+        productName: 'Fixture Multigrain Atta 5 kg', price: 310, availability: 'UNKNOWN', ageMinutes: 5,
+      }),
+    ])
+    for (const f of fixtures) fixtureShopIds.add(f.shop.id)
   })
 
   afterAll(async () => {
@@ -140,26 +152,26 @@ describe('GET /api/search', () => {
   })
 
   it('"atta" at the anchor returns at least 4 distinct shops', async () => {
-    const res = await request(app).get('/api/search').query({ q: 'atta', lat: ANCHOR.lat, lng: ANCHOR.lng, radius: 1000 })
+    const res = await request(app).get('/api/search').query({ q: 'atta', lat: ANCHOR.lat, lng: ANCHOR.lng, radius: 1000, pageSize: 100 })
     expect(res.status).toBe(200)
-    const shopIds = new Set(res.body.results.map((r: { shopId: string }) => r.shopId))
+    const shopIds = new Set(onlyOurs(res.body.results).map((r: { shopId: string }) => r.shopId))
     expect(shopIds.size).toBeGreaterThanOrEqual(4)
   })
 
   it('"aata" and "ata" return the same set of products', async () => {
-    const aata = await request(app).get('/api/search').query({ q: 'aata', lat: ANCHOR.lat, lng: ANCHOR.lng, radius: 1000 })
-    const ata = await request(app).get('/api/search').query({ q: 'ata', lat: ANCHOR.lat, lng: ANCHOR.lng, radius: 1000 })
+    const aata = await request(app).get('/api/search').query({ q: 'aata', lat: ANCHOR.lat, lng: ANCHOR.lng, radius: 1000, pageSize: 100 })
+    const ata = await request(app).get('/api/search').query({ q: 'ata', lat: ANCHOR.lat, lng: ANCHOR.lng, radius: 1000, pageSize: 100 })
 
     const productIds = (res: request.Response) =>
-      [...new Set(res.body.results.map((r: { product: { id: string } }) => r.product.id))].sort()
+      [...new Set(onlyOurs(res.body.results).map((r: { product: { id: string } }) => r.product.id))].sort()
 
     expect(productIds(aata)).toEqual(productIds(ata))
     expect(productIds(aata).length).toBeGreaterThan(0)
   })
 
   it('results carry differing badges', async () => {
-    const res = await request(app).get('/api/search').query({ q: 'atta', lat: ANCHOR.lat, lng: ANCHOR.lng, radius: 1000 })
-    const labels = new Set(res.body.results.map((r: { badge: { label: string } }) => r.badge.label))
+    const res = await request(app).get('/api/search').query({ q: 'atta', lat: ANCHOR.lat, lng: ANCHOR.lng, radius: 1000, pageSize: 100 })
+    const labels = new Set(onlyOurs(res.body.results).map((r: { badge: { label: string } }) => r.badge.label))
     expect(labels.size).toBeGreaterThanOrEqual(2)
   })
 
@@ -178,7 +190,7 @@ describe('GET /api/search', () => {
   })
 
   it('never emits a numeric stock count', async () => {
-    const res = await request(app).get('/api/search').query({ q: 'atta', lat: ANCHOR.lat, lng: ANCHOR.lng, radius: 1000 })
+    const res = await request(app).get('/api/search').query({ q: 'atta', lat: ANCHOR.lat, lng: ANCHOR.lng, radius: 1000, pageSize: 100 })
     const raw = JSON.stringify(res.body)
     expect(raw).not.toMatch(/"stock(Count|Quantity)"/i)
   })
