@@ -10,6 +10,7 @@
     "db:reset": "npm --workspace @shopnear/api run db:reset",
     "db:studio": "npm --workspace @shopnear/api run db:studio",
     "dev:api": "npm --workspace @shopnear/api run dev",
+    "dev:web-customer": "npm --workspace @shopnear/web-customer run dev",
     "dev": "npm run dev:api"
   },
   "devDependencies": {
