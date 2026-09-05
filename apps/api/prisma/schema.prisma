@@ -56,6 +56,9 @@ model User {
   addresses      Address[] @relation("UserAddresses")
   defaultAddress Address?  @relation("UserDefaultAddress", fields: [defaultAddressId], references: [id])
   shops          Shop[]
+  orders         Order[]   @relation("CustomerOrders")
+  reviews        Review[]  @relation("CustomerReviews")
+  disputes       Dispute[] @relation("UserDisputes")
 
   /// Spec R7: the same phone may hold one customer AND one merchant account.
   @@unique([phone, role])
@@ -75,6 +78,7 @@ model Address {
 
   user           User   @relation("UserAddresses", fields: [userId], references: [id], onDelete: Cascade)
   defaultForUser User[] @relation("UserDefaultAddress")
+  orders         Order[]
 
   @@index([userId])
 }
@@ -111,6 +115,8 @@ model Shop {
 
   owner User @relation(fields: [ownerId], references: [id])
   inventory ShopInventory[]
+  orders  Order[]
+  reviews Review[]
 
   @@index([ownerId])
   @@index([status])
@@ -174,6 +180,7 @@ model Product {
   category    Category               @relation(fields: [categoryId], references: [id])
   inventory   ShopInventory[]
   starterFor  StarterCatalogueItem[]
+  orderItems  OrderItem[]
 
   @@index([categoryId])
 }
@@ -211,4 +218,177 @@ model StarterCatalogueItem {
 
   @@unique([shopType, productId])
   @@index([shopType])
+}
+
+enum OrderType {
+  RESERVE_AND_COLLECT
+  DELIVERY
+}
+
+enum OrderStatus {
+  PLACED
+  CONFIRMED
+  READY_FOR_PICKUP
+  OUT_FOR_DELIVERY
+  COMPLETED
+  CANCELLED_BY_CUSTOMER
+  REJECTED_BY_SHOP
+  EXPIRED
+}
+
+enum PaymentMode {
+  CASH_ON_PICKUP
+  CASH_ON_DELIVERY
+  MOCK_ONLINE
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+enum FulfilmentStatus {
+  PENDING
+  AVAILABLE
+  UNAVAILABLE
+  SUBSTITUTED
+}
+
+enum DisputeReason {
+  ITEM_NOT_AVAILABLE_ON_ARRIVAL
+  PRICE_MISMATCH
+  QUALITY_ISSUE
+  SHOP_CLOSED
+  OTHER
+}
+
+enum DisputeStatus {
+  OPEN
+  RESOLVED
+  REJECTED
+}
+
+model Order {
+  id                String        @id @default(cuid())
+  /// Human-readable, e.g. SN-2401 — what the customer and merchant say aloud.
+  orderNumber       String        @unique
+  customerId        String
+  shopId            String
+  type              OrderType
+  status            OrderStatus   @default(PLACED)
+  subtotal          Float
+  deliveryFee       Float         @default(0)
+  total             Float
+  paymentMode       PaymentMode
+  paymentStatus     PaymentStatus @default(PENDING)
+  deliveryAddressId String?
+  customerNote      String?
+  merchantNote      String?
+  rejectionReason   String?
+  /// 4-digit code shown to the customer, typed by the merchant to complete.
+  pickupCode        String
+  /// Reservations expire (default 2 h) — a cron job moves PLACED to EXPIRED.
+  expiresAt         DateTime?
+  createdAt         DateTime      @default(now())
+  confirmedAt       DateTime?
+  readyAt           DateTime?
+  outForDeliveryAt  DateTime?
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+  rejectedAt        DateTime?
+  expiredAt         DateTime?
+
+  customer        User        @relation("CustomerOrders", fields: [customerId], references: [id])
+  shop            Shop        @relation(fields: [shopId], references: [id])
+  deliveryAddress Address?    @relation(fields: [deliveryAddressId], references: [id])
+  items           OrderItem[]
+  review          Review?
+  disputes        Dispute[]
+
+  @@index([shopId, status])
+  @@index([customerId])
+  @@index([status, expiresAt])
+}
+
+model OrderItem {
+  id                  String          @id @default(cuid())
+  orderId             String
+  productId           String
+  /// Snapshots: historical orders must never join to live catalogue data.
+  productNameSnapshot String
+  unitLabelSnapshot   String
+  quantity            Float
+  unitPrice           Float
+  lineTotal           Float
+  fulfilmentStatus    FulfilmentStatus @default(PENDING)
+  substituteProductId String?
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  orderId    String   @unique
+  customerId String
+  shopId     String
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  order    Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  customer User  @relation("CustomerReviews", fields: [customerId], references: [id])
+  shop     Shop  @relation(fields: [shopId], references: [id])
+
+  @@index([shopId])
+}
+
+model Dispute {
+  id            String        @id @default(cuid())
+  orderId       String
+  raisedByUserId String
+  reason        DisputeReason
+  description   String
+  status        DisputeStatus @default(OPEN)
+  adminNote     String?
+  createdAt     DateTime      @default(now())
+  resolvedAt    DateTime?
+
+  order     Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  raisedBy  User  @relation("UserDisputes", fields: [raisedByUserId], references: [id])
+
+  @@index([status])
+}
+
+/// Append-only audit log. Powers the confidence badges' "confirmed N min ago"
+/// and the admin availability-accuracy analytics.
+model AvailabilityEvent {
+  id                   String             @id @default(cuid())
+  shopId               String
+  productId            String
+  previousAvailability Availability
+  newAvailability      Availability
+  source               AvailabilitySource
+  orderId              String?
+  createdAt            DateTime           @default(now())
+
+  @@index([shopId, productId])
+  @@index([createdAt])
+}
+
+/// Feeds the unmet-demand report: what people searched for and found nothing.
+model SearchLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  queryText   String
+  resultCount Int
+  lat         Float
+  lng         Float
+  createdAt   DateTime @default(now())
+
+  @@index([resultCount])
+  @@index([createdAt])
 }
