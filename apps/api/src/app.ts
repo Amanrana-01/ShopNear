@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit'
 import { prisma } from './db'
 import { errorMiddleware } from './http/errors'
 import { authRouter } from './modules/auth/auth.routes'
+import { shopsRouter } from './modules/shops/shops.routes'
 
 /**
  * Every error the API returns uses one envelope, so all three clients can
@@ -54,6 +55,7 @@ export function createApp(): Express {
 
   const apiRouter = express.Router()
   apiRouter.use('/auth', authRateLimiter, authRouter)
+  apiRouter.use('/shops', shopsRouter)
   app.use('/api', apiRouter)
 
   app.use((_req: Request, res: Response) => {
