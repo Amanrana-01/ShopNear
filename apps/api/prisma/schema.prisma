@@ -110,6 +110,7 @@ model Shop {
   createdAt            DateTime   @default(now())
 
   owner User @relation(fields: [ownerId], references: [id])
+  inventory ShopInventory[]
 
   @@index([ownerId])
   @@index([status])
@@ -125,4 +126,89 @@ model Category {
 
   parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
   children Category[] @relation("CategoryTree")
+  products Product[]
+}
+
+enum UnitType {
+  PIECE
+  WEIGHT
+  VOLUME
+  PACK
+}
+
+enum Availability {
+  IN_STOCK
+  OUT_OF_STOCK
+  USUALLY_AVAILABLE
+  UNKNOWN
+}
+
+enum AvailabilitySource {
+  MERCHANT_MANUAL
+  RESERVATION_CONFIRMED
+  RESERVATION_REJECTED
+  SEED
+  AUTO_DECAY
+}
+
+/// The global master catalogue. A Product is an idea ("Amul Butter 500 g");
+/// ShopInventory is what makes it real, priced, and available in one shop.
+/// This split is the heart of the design — see docs/architecture.md.
+model Product {
+  id               String   @id @default(cuid())
+  name             String
+  nameGu           String
+  brand            String?
+  categoryId       String
+  unitType         UnitType
+  defaultUnitLabel String
+  /// Null for loose goods sold by weight.
+  mrp              Float?
+  barcode          String?  @unique
+  imageUrl         String?
+  /// Hindi/Gujarati transliterations included, so "aata"/"atta"/"lot" all
+  /// resolve to wheat flour. Search quality depends on seeding these well.
+  searchKeywords   String[]
+  isLooseGood      Boolean  @default(false)
+
+  category    Category               @relation(fields: [categoryId], references: [id])
+  inventory   ShopInventory[]
+  starterFor  StarterCatalogueItem[]
+
+  @@index([categoryId])
+}
+
+model ShopInventory {
+  id                    String             @id @default(cuid())
+  shopId                String
+  productId             String
+  price                 Float
+  availability          Availability       @default(UNKNOWN)
+  availabilityUpdatedAt DateTime           @default(now())
+  availabilitySource    AvailabilitySource @default(SEED)
+  confirmCount          Int                @default(0)
+  rejectCount           Int                @default(0)
+  notes                 String?
+  isActive              Boolean            @default(true)
+
+  shop    Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([shopId, productId])
+  @@index([shopId, productId])
+  @@index([productId, availability])
+}
+
+/// Curated starter kit per shop type, powering registration wizard step 7
+/// (spec R10) so a newly approved shop is never empty on day one.
+model StarterCatalogueItem {
+  id             String   @id @default(cuid())
+  shopType       ShopType
+  productId      String
+  suggestedPrice Float
+
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([shopType, productId])
+  @@index([shopType])
 }
