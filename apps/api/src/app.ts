@@ -1,7 +1,9 @@
 import express, { type Express, type Request, type Response } from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
 import { prisma } from './db'
+import { errorMiddleware } from './http/errors'
 
 /**
  * Every error the API returns uses one envelope, so all three clients can
@@ -10,6 +12,20 @@ import { prisma } from './db'
 export interface ApiError {
   error: { code: string; message: string; details?: unknown }
 }
+
+/**
+ * Auth routes are the obvious brute-force target (OTP guesses, password
+ * guesses) — rate-limited per spec §13. Generous enough that the test
+ * suite and a normal demo session never trip it, tight enough to be a real
+ * control.
+ */
+const authRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: 'RATE_LIMITED', message: 'Too many requests. Please try again later.' } },
+})
 
 export function createApp(): Express {
   const app = express()
@@ -35,11 +51,20 @@ export function createApp(): Express {
     }
   })
 
+  // Mounted here so Task 3's auth router only has to attach itself at
+  // `/auth` and inherit the rate limiter already in front of it.
+  const apiRouter = express.Router()
+  apiRouter.use('/auth', authRateLimiter)
+  app.use('/api', apiRouter)
+
   app.use((_req: Request, res: Response) => {
     res.status(404).json({
       error: { code: 'NOT_FOUND', message: 'This endpoint does not exist.' },
     } satisfies ApiError)
   })
+
+  // Must be mounted last so errors thrown/forwarded by any route above reach it.
+  app.use(errorMiddleware)
 
   return app
 }
