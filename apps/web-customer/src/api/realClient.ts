@@ -5,6 +5,7 @@ import type {
   MultiItemSearchRequest, MultiItemSearchResponse, RequestOtpRequest, VerifyOtpRequest,
   VerifyOtpResponse, AuthUser, CompleteProfileRequest, CompleteProfileResponse, Address,
   ShopType, UnitType, Availability, AvailabilitySource, Badge,
+  Order, OrderItem, CreateOrderRequest,
 } from '@shopnear/shared'
 import type { ShopNearApi, ProductDetailResponse } from './client'
 import { mockClient } from './mockClient'
@@ -16,11 +17,9 @@ import { CATEGORIES, CATEGORY_BY_SLUG } from './fixtures/categories'
  * `ShopNearApi` against the live API (see `.superpowers/sdd/phase-2-tasks-*
  * -report.md` for the endpoint contracts this was written against).
  *
- * Ordering/checkout endpoints don't exist on the API yet (another agent is
- * building them) — those seven methods are re-exported straight from
- * `mockClient` at the bottom of this file so cart/checkout/orders keep
- * working today. Swapping them to the real thing later means replacing
- * exactly those seven lines.
+ * Catalogue, search, auth and ordering all run against the live API.
+ * `submitReview` and `raiseDispute` remain on `mockClient` at the bottom of
+ * this file until their endpoints land.
  */
 
 const BASE_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:4000').replace(/\/$/, '')
@@ -506,19 +505,152 @@ const catalogueAndSearchClient: Pick<
   },
 }
 
-/**
- * Ordering/checkout don't exist on the real API yet (spec: another agent is
- * building them). These seven methods are the mock, verbatim, so cart,
- * checkout and order tracking keep working against realistic demo data
- * until that lands — swapping them to the real thing later is exactly
- * these seven lines.
- */
+// ---------------------------------------------------------------------------
+// Orders
+//
+// The API returns a flat order row: `shopId` rather than an embedded shop,
+// and line items carrying only the name/unit snapshots taken at order time
+// (deliberately — a historical order must never re-read the live catalogue,
+// or last month's receipt would silently change when a price does).
+//
+// The UI wants a shop summary and an image per line, so we enrich here: one
+// extra shop fetch per order, and images looked up from that shop's current
+// inventory purely as decoration. If either lookup fails the order still
+// renders — the snapshot fields are the source of truth for what was bought.
+// ---------------------------------------------------------------------------
+
+/** The API's order row, before enrichment. */
+interface ApiOrder {
+  id: string; orderNumber: string; status: Order['status']; type: Order['type']
+  shopId: string; subtotal: number; deliveryFee: number; total: number
+  paymentMode: Order['paymentMode']; paymentStatus: Order['paymentStatus']
+  deliveryAddressId: string | null; customerNote: string | null
+  rejectionReason: string | null; pickupCode: string
+  expiresAt: string | null; createdAt: string; confirmedAt: string | null
+  readyAt: string | null; outForDeliveryAt: string | null
+  completedAt: string | null; cancelledAt: string | null
+  rejectedAt: string | null; expiredAt: string | null
+  items: Array<{
+    id: string; productId: string; productNameSnapshot: string
+    unitLabelSnapshot: string; quantity: number; unitPrice: number
+    lineTotal: number; fulfilmentStatus: OrderItem['fulfilmentStatus']
+  }>
+  review?: { rating: number; comment: string | null } | null
+}
+
+async function enrichOrder(row: ApiOrder, location: GeoPoint | null): Promise<Order> {
+  let shop: ShopSummary
+  let imagesByProductId = new Map<string, string | null>()
+
+  try {
+    const anchor = location ?? { lat: 23.0365, lng: 72.5611 }
+    const detail = await catalogueAndSearchClient.getShop(row.shopId, anchor)
+    shop = detail
+    try {
+      const inv = await catalogueAndSearchClient.getShopInventory({ shopId: row.shopId })
+      imagesByProductId = new Map(inv.map((e) => [e.product.id, e.product.imageUrl]))
+    } catch {
+      // Images are decoration; an order with plain tiles is still correct.
+    }
+  } catch {
+    // Shop lookup failed (deleted, suspended, offline). Fall back to a stub
+    // so order history still renders rather than erroring the whole page.
+    shop = { id: row.shopId, name: 'Shop', distanceMeters: 0, isOpenNow: false }
+  }
+
+  return {
+    id: row.id,
+    orderNumber: row.orderNumber,
+    status: row.status,
+    type: row.type,
+    shop,
+    items: row.items.map((i) => ({
+      id: i.id,
+      productId: i.productId,
+      productNameSnapshot: i.productNameSnapshot,
+      unitLabelSnapshot: i.unitLabelSnapshot,
+      imageUrl: imagesByProductId.get(i.productId) ?? null,
+      quantity: i.quantity,
+      unitPrice: i.unitPrice,
+      lineTotal: i.lineTotal,
+      fulfilmentStatus: i.fulfilmentStatus,
+    })),
+    subtotal: row.subtotal,
+    deliveryFee: row.deliveryFee,
+    total: row.total,
+    paymentMode: row.paymentMode,
+    paymentStatus: row.paymentStatus,
+    deliveryAddress: null,
+    customerNote: row.customerNote,
+    rejectionReason: row.rejectionReason,
+    pickupCode: row.pickupCode,
+    expiresAt: row.expiresAt,
+    createdAt: row.createdAt,
+    confirmedAt: row.confirmedAt,
+    readyAt: row.readyAt,
+    outForDeliveryAt: row.outForDeliveryAt,
+    completedAt: row.completedAt,
+    cancelledAt: row.cancelledAt,
+    rejectedAt: row.rejectedAt,
+    expiredAt: row.expiredAt,
+    review: row.review ?? null,
+  }
+}
+
+/** Where the customer currently is, for the distance shown on an order's shop. */
+function readStoredLocation(): GeoPoint | null {
+  try {
+    const raw = localStorage.getItem('shopnear.location.v1')
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { lat?: number; lng?: number }
+    return typeof parsed.lat === 'number' && typeof parsed.lng === 'number'
+      ? { lat: parsed.lat, lng: parsed.lng }
+      : null
+  } catch { return null }
+}
+
 export const realClient: ShopNearApi = {
   ...catalogueAndSearchClient,
-  createOrder: mockClient.createOrder,
-  getOrder: mockClient.getOrder,
-  listOrders: mockClient.listOrders,
-  cancelOrder: mockClient.cancelOrder,
+
+  async createOrder(req: CreateOrderRequest): Promise<Order> {
+    // The mock payment screen can force a failure; the API has no notion of
+    // simulated payments, so honour it here before anything is persisted.
+    if (req.paymentMode === 'MOCK_ONLINE' && req.simulatePaymentOutcome === 'failure') {
+      throw new Error('Payment failed. Please try another method.')
+    }
+    const { order } = await apiFetch<{ order: ApiOrder }>('/api/orders', {
+      method: 'POST',
+      body: JSON.stringify({
+        shopId: req.shopId,
+        type: req.type,
+        items: req.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+        paymentMode: req.paymentMode,
+        ...(req.deliveryAddressId ? { deliveryAddressId: req.deliveryAddressId } : {}),
+        ...(req.customerNote ? { customerNote: req.customerNote } : {}),
+      }),
+    })
+    return enrichOrder(order, readStoredLocation())
+  },
+
+  async getOrder(orderId: string): Promise<Order> {
+    const { order } = await apiFetch<{ order: ApiOrder }>(`/api/orders/${orderId}`)
+    return enrichOrder(order, readStoredLocation())
+  },
+
+  async listOrders(): Promise<Order[]> {
+    const { orders } = await apiFetch<{ orders: ApiOrder[] }>('/api/orders/mine')
+    const location = readStoredLocation()
+    return Promise.all(orders.map((o) => enrichOrder(o, location)))
+  },
+
+  async cancelOrder(orderId: string): Promise<Order> {
+    const { order } = await apiFetch<{ order: ApiOrder }>(`/api/orders/${orderId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    })
+    return enrichOrder(order, readStoredLocation())
+  },
+
   submitReview: mockClient.submitReview,
   raiseDispute: mockClient.raiseDispute,
 }
