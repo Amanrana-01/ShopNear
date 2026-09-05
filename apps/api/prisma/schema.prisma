@@ -120,6 +120,8 @@ model Shop {
 
   @@index([ownerId])
   @@index([status])
+  /// Spatial index for radius search (spec §13: search under 300 ms).
+  @@index([location], type: Gist)
 }
 
 model Category {
@@ -183,6 +185,8 @@ model Product {
   orderItems  OrderItem[]
 
   @@index([categoryId])
+  /// Typo-tolerant product search: "ata" -> "Aashirvaad Atta 5 kg" (spec §8).
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
 model ShopInventory {
