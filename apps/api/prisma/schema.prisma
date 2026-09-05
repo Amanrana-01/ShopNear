@@ -10,3 +10,119 @@ datasource db {
   url        = env("DATABASE_URL")
   extensions = [postgis, pg_trgm]
 }
+
+enum UserRole {
+  CUSTOMER
+  MERCHANT
+  ADMIN
+}
+
+enum Language {
+  en
+  hi
+  gu
+}
+
+enum ShopStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum ShopType {
+  KIRANA
+  GENERAL
+  STATIONERY
+  HARDWARE
+  CHEMIST
+  BAKERY
+  DAIRY
+  FARSAN
+  VEGETABLE
+}
+
+model User {
+  id                String    @id @default(cuid())
+  name              String
+  phone             String
+  email             String?   @unique
+  role              UserRole
+  /// Null for customers (OTP-only). Set for merchants and admin.
+  passwordHash      String?
+  defaultAddressId  String?
+  preferredLanguage Language  @default(en)
+  createdAt         DateTime  @default(now())
+
+  addresses      Address[] @relation("UserAddresses")
+  defaultAddress Address?  @relation("UserDefaultAddress", fields: [defaultAddressId], references: [id])
+  shops          Shop[]
+
+  /// Spec R7: the same phone may hold one customer AND one merchant account.
+  @@unique([phone, role])
+}
+
+model Address {
+  id       String  @id @default(cuid())
+  userId   String
+  label    String
+  line1    String
+  line2    String?
+  landmark String?
+  city     String  @default("Ahmedabad")
+  pincode  String
+  lat      Float
+  lng      Float
+
+  user           User   @relation("UserAddresses", fields: [userId], references: [id], onDelete: Cascade)
+  defaultForUser User[] @relation("UserDefaultAddress")
+
+  @@index([userId])
+}
+
+model Shop {
+  id                   String     @id @default(cuid())
+  ownerId              String
+  name                 String
+  nameGu               String
+  type                 ShopType
+  description          String?
+  phone                String
+  address              String
+  lat                  Float
+  lng                  Float
+  /// PostGIS geography point, written via raw SQL — Prisma has no geography
+  /// type. Kept in step with lat/lng by the seed and the shop service.
+  location             Unsupported("geography(Point, 4326)")?
+  status               ShopStatus @default(PENDING)
+  /// { mon..sun: { open, close } | null, isTemporarilyClosed: boolean }
+  /// `isOpenNow` is computed from this at read time — never stored (spec R3).
+  openingHours         Json
+  acceptsDelivery      Boolean    @default(false)
+  deliveryRadiusMeters Int        @default(0)
+  minOrderValue        Float      @default(0)
+  deliveryFee          Float      @default(0)
+  avgRating            Float      @default(0)
+  ratingCount          Int        @default(0)
+  bannerImageUrl       String?
+  /// Mock GST/Udyam/licence details — never verified (spec R11).
+  licenceNumber        String?
+  licenceDocUrl        String?
+  createdAt            DateTime   @default(now())
+
+  owner User @relation(fields: [ownerId], references: [id])
+
+  @@index([ownerId])
+  @@index([status])
+}
+
+model Category {
+  id       String  @id @default(cuid())
+  name     String
+  nameGu   String
+  slug     String  @unique
+  iconName String
+  parentId String?
+
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+}
