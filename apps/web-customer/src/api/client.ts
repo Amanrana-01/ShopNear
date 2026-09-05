@@ -5,12 +5,12 @@
  * flipping the switch in `index.ts` — nothing else in the app changes.
  */
 import type {
-  LocationPreset, Category, ShopSummary, ShopDetail, Product, InventoryEntry,
+  LocationPreset, Category, ShopSummary, ShopDetail, Product, InventoryEntry, GeoPoint,
   GetShopsNearbyRequest, SearchProductsRequest, ProductSearchGroup,
   GetProductDetailRequest, ShopOffer, GetShopInventoryRequest,
   MultiItemSearchRequest, MultiItemSearchResponse, CreateOrderRequest, Order,
   SubmitReviewRequest, RaiseDisputeRequest, Dispute, RequestOtpRequest,
-  VerifyOtpRequest, Session, AuthUser,
+  VerifyOtpRequest, VerifyOtpResponse, AuthUser, CompleteProfileRequest, CompleteProfileResponse,
 } from '@shopnear/shared'
 
 export interface ProductDetailResponse {
@@ -25,7 +25,9 @@ export interface ShopNearApi {
   // Catalogue browsing
   getCategories(): Promise<Category[]>
   getShopsNearby(req: GetShopsNearbyRequest): Promise<ShopSummary[]>
-  getShop(shopId: string): Promise<ShopDetail>
+  /** `location` is only used to compute `distanceMeters` client-side — the
+   * real `GET /api/shops/:id` has no location anchor of its own. */
+  getShop(shopId: string, location: GeoPoint): Promise<ShopDetail>
   getShopInventory(req: GetShopInventoryRequest): Promise<InventoryEntry[]>
 
   // Search
@@ -44,8 +46,11 @@ export interface ShopNearApi {
   raiseDispute(req: RaiseDisputeRequest): Promise<Dispute>
 
   // Auth
-  requestOtp(req: RequestOtpRequest): Promise<{ devOtp: string }>
-  verifyOtp(req: VerifyOtpRequest): Promise<Session>
+  requestOtp(req: RequestOtpRequest): Promise<{ sent: boolean }>
+  verifyOtp(req: VerifyOtpRequest): Promise<VerifyOtpResponse>
+  /** First-time-customer profile completion (name + first address). Only
+   * meaningful when `verifyOtp` resolved with `isNewUser: true`. */
+  completeProfile(req: CompleteProfileRequest): Promise<CompleteProfileResponse>
   getCurrentUser(): Promise<AuthUser | null>
   logout(): Promise<void>
 }

@@ -62,7 +62,7 @@ export default function ProductDetail() {
                     </Link>
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink/50">
                       <span className="font-semibold text-brand-700">{formatDistance(offer.shop.distanceMeters)}</span>
-                      <RatingDisplay rating={offer.shop.avgRating} />
+                      <RatingDisplay rating={offer.shop.avgRating ?? 0} />
                       {offer.shop.acceptsDelivery && <span className="inline-flex items-center gap-1"><IconTruck size={12} /> Delivery</span>}
                     </div>
                     <AvailabilityBadge availability={offer.availability} availabilityUpdatedAt={offer.availabilityUpdatedAt} className="mt-2" />

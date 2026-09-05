@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/api'
+import { useLocation } from '@/state/LocationContext'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { ProductCard } from '@/components/ProductCard'
 import { Chip } from '@/components/ui/Chip'
@@ -17,10 +18,17 @@ const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
 
 export default function ShopPage() {
   const { id = '' } = useParams()
+  const { location } = useLocation()
   const [categorySlug, setCategorySlug] = useState<string | null>(null)
   const [q, setQ] = useState('')
 
-  const shopQuery = useQuery({ queryKey: ['shop', id], queryFn: () => api.getShop(id), enabled: !!id })
+  // The real GET /api/shops/:id has no location anchor, so distance is
+  // computed client-side from wherever the customer currently is.
+  const shopQuery = useQuery({
+    queryKey: ['shop', id, location?.lat, location?.lng],
+    queryFn: () => api.getShop(id, { lat: location!.lat, lng: location!.lng }),
+    enabled: !!id && !!location,
+  })
   const inventoryQuery = useQuery({
     queryKey: ['shop-inventory', id, categorySlug, q],
     queryFn: () => api.getShopInventory({ shopId: id, categorySlug: categorySlug ?? undefined, query: q || undefined }),
@@ -30,7 +38,13 @@ export default function ShopPage() {
   const categories = useMemo(() => {
     if (!inventoryQuery.data) return []
     const set = new Map<string, number>()
-    for (const e of inventoryQuery.data) set.set(e.product.categorySlug, (set.get(e.product.categorySlug) ?? 0) + 1)
+    for (const e of inventoryQuery.data) {
+      // The real API returns only a raw categoryId, never a slug, so category
+      // chips simply don't appear when running against live data.
+      const slug = e.product.categorySlug
+      if (!slug) continue
+      set.set(slug, (set.get(slug) ?? 0) + 1)
+    }
     return Array.from(set.entries())
   }, [inventoryQuery.data])
 
@@ -59,7 +73,7 @@ export default function ShopPage() {
               <p className="text-sm text-ink/50">{shop.address}</p>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                 <span className="font-semibold text-brand-700">{formatDistance(shop.distanceMeters)} away</span>
-                <RatingDisplay rating={shop.avgRating} count={shop.ratingCount} />
+                <RatingDisplay rating={shop.avgRating ?? 0} count={shop.ratingCount ?? 0} />
                 {shop.acceptsDelivery && (
                   <span className="inline-flex items-center gap-1 text-ink/50">
                     <IconTruck size={12} /> Delivery ₹{shop.deliveryFee}, min ₹{shop.minOrderValue}

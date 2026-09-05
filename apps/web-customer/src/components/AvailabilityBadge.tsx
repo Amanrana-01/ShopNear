@@ -1,4 +1,4 @@
-import type { Availability } from '@shopnear/shared'
+import type { Availability, Badge, BadgeTone as ApiBadgeTone } from '@shopnear/shared'
 import { cn } from '@/lib/utils'
 import { ageInMinutes, formatRelativeTime } from '@/lib/format'
 import { IconCheckCircle, IconClock, IconAlert, IconHelp } from './ui/Icon'
@@ -21,16 +21,37 @@ const TONE_CLASSES: Record<BadgeTone, string> = {
   grey: 'bg-gray-100 text-gray-600',
 }
 
+/** Maps the API's server-computed badge tone (`green-amber` etc.) onto this
+ * component's own tone/icon vocabulary. Used only when a precomputed
+ * `badge` is supplied — see `getAvailabilityBadge` below. */
+const API_TONE_TO_LOCAL: Record<ApiBadgeTone, { tone: BadgeTone; Icon: (p: IconProps) => JSX.Element }> = {
+  green: { tone: 'green', Icon: IconCheckCircle },
+  'green-amber': { tone: 'likely', Icon: IconCheckCircle },
+  amber: { tone: 'amber', Icon: IconClock },
+  red: { tone: 'red', Icon: IconAlert },
+  grey: { tone: 'grey', Icon: IconHelp },
+}
+
 /**
  * The one rule this whole product is built on: never show a number, always
  * show a confidence level paired with how recently it was confirmed. Colour
  * is never the only signal — every tone below ships with its own icon and
  * text label (WCAG "use of colour" 1.4.1).
+ *
+ * `precomputed`, when given, is the API's own server-computed badge (single
+ * item search never exposes the raw availability/timestamp pair, only this
+ * — see contracts.ts's `Offer.badge`) and is rendered as-is instead of
+ * re-derived from `availability`/`availabilityUpdatedAt`.
  */
 export function getAvailabilityBadge(
   availability: Availability | null | undefined,
   availabilityUpdatedAt: string | null | undefined,
+  precomputed?: Badge,
 ): BadgeInfo {
+  if (precomputed) {
+    const mapped = API_TONE_TO_LOCAL[precomputed.tone]
+    return { label: precomputed.label, sublabel: precomputed.detail, tone: mapped.tone, Icon: mapped.Icon }
+  }
   if (!availability || !availabilityUpdatedAt) {
     return { label: 'Ask the shop', sublabel: 'reserving is still allowed', tone: 'grey', Icon: IconHelp }
   }

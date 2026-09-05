@@ -53,14 +53,14 @@ for (const shop of SHOPS) {
   let chosenNames: Set<string>
 
   if (isBroad) {
-    const pool = PRODUCTS.filter((p) => !SPECIALIST_ONLY_SLUGS.has(p.categorySlug)).map((p) => p.name)
+    const pool = PRODUCTS.filter((p) => !SPECIALIST_ONLY_SLUGS.has(p.categorySlug ?? '')).map((p) => p.name)
     chosenNames = new Set(ESSENTIAL_NAMES)
     const remaining = pool.filter((n) => !chosenNames.has(n))
     const target = Math.min(pool.length, 90 + Math.floor(rng() * 40))
     for (const n of sample(rng, remaining, Math.max(0, target - chosenNames.size))) chosenNames.add(n)
   } else {
-    const slugs = SPECIALIST_SLUGS[shop.type] ?? []
-    const starterPool = PRODUCTS.filter((p) => slugs.includes(p.categorySlug)).map((p) => p.name)
+    const slugs = shop.type ? (SPECIALIST_SLUGS[shop.type] ?? []) : []
+    const starterPool = PRODUCTS.filter((p) => slugs.includes(p.categorySlug ?? '')).map((p) => p.name)
     chosenNames = new Set(starterPool)
     for (const n of UNIVERSAL_TAIL_NAMES) if (rng() > 0.35) chosenNames.add(n)
   }
@@ -123,10 +123,16 @@ export function offerFor(shopId: string, productId: string): Offer | undefined {
   return row ? toOffer(row) : undefined
 }
 
-// Backfill each shop's inventoryCount now that rows exist.
+// Backfill each shop's inventorySummary now that rows exist — mirrors the
+// real API's GET /api/shops/:id response shape exactly (see
+// apps/api/src/modules/shops/shops.service.ts#getShopDetail).
 for (const shop of SHOPS) {
   const detail = SHOP_DETAILS.get(shop.id)
-  if (detail) detail.inventoryCount = rows.filter((r) => r.shopId === shop.id).length
+  if (!detail) continue
+  const shopRows = rows.filter((r) => r.shopId === shop.id)
+  const byAvailability: Record<string, number> = {}
+  for (const r of shopRows) byAvailability[r.availability] = (byAvailability[r.availability] ?? 0) + 1
+  detail.inventorySummary = { totalItems: shopRows.length, byAvailability }
 }
 
 export const ALL_ROWS = rows

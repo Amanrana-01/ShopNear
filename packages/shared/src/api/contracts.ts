@@ -69,6 +69,22 @@ export const RadiusMetersSchema = z.union([
 ])
 export type RadiusMeters = z.infer<typeof RadiusMetersSchema>
 
+/** The API's server-computed availability confidence badge (see
+ * apps/api/src/modules/availability/confidence.ts) — `label` + `tone` +
+ * an optional human `detail`, never a stock count. Some endpoints (single
+ * item search) only ever expose this precomputed badge, not the raw
+ * availability/timestamp pair; others (shop inventory, product detail)
+ * expose the raw pair and the client derives the same badge itself. See
+ * `Offer` below and `AvailabilityBadge.tsx`. */
+export const BadgeToneSchema = z.enum(['green', 'green-amber', 'amber', 'red', 'grey'])
+export type BadgeTone = z.infer<typeof BadgeToneSchema>
+export const BadgeSchema = z.object({
+  label: z.enum(['In stock', 'Likely available', 'Usually available', 'Out of stock', 'Ask the shop']),
+  tone: BadgeToneSchema,
+  detail: z.string().optional(),
+})
+export type Badge = z.infer<typeof BadgeSchema>
+
 // ---------------------------------------------------------------------------
 // Location gate
 // ---------------------------------------------------------------------------
@@ -112,22 +128,30 @@ export type OpeningHours = z.infer<typeof OpeningHoursSchema>
 // Shops
 // ---------------------------------------------------------------------------
 
+/**
+ * `id`, `name`, `distanceMeters` and `isOpenNow` are guaranteed by every
+ * endpoint that returns a shop reference. Everything else is optional
+ * because the API's single-item search (`GET /api/search`) only ever
+ * returns a minimal per-row shop stub (id/name/distance/isOpenNow) — the
+ * real client fills the rest in from `GET /api/shops/nearby` wherever it
+ * can, but callers that only have a search row should not assume more.
+ */
 export const ShopSummarySchema = z.object({
   id: z.string(),
   name: z.string(),
-  nameGu: z.string(),
-  type: ShopTypeSchema,
+  nameGu: z.string().optional(),
+  type: ShopTypeSchema.optional(),
   distanceMeters: z.number(),
-  address: z.string(),
-  lat: z.number(),
-  lng: z.number(),
-  avgRating: z.number(),
-  ratingCount: z.number(),
+  address: z.string().optional(),
+  lat: z.number().optional(),
+  lng: z.number().optional(),
+  avgRating: z.number().optional(),
+  ratingCount: z.number().optional(),
   isOpenNow: z.boolean(),
-  acceptsDelivery: z.boolean(),
-  deliveryFee: z.number(),
-  minOrderValue: z.number(),
-  bannerImageUrl: z.string().nullable(),
+  acceptsDelivery: z.boolean().optional(),
+  deliveryFee: z.number().optional(),
+  minOrderValue: z.number().optional(),
+  bannerImageUrl: z.string().nullable().optional(),
 })
 export type ShopSummary = z.infer<typeof ShopSummarySchema>
 
@@ -135,7 +159,14 @@ export const ShopDetailSchema = ShopSummarySchema.extend({
   description: z.string().nullable(),
   phone: z.string(),
   openingHours: OpeningHoursSchema,
-  inventoryCount: z.number(),
+  /** `GET /api/shops/:id` has no location anchor, so it never returns a
+   * distance itself — the real client computes `distanceMeters` above
+   * client-side (haversine) from the caller's current location and this
+   * shop's lat/lng, rather than from the server. */
+  inventorySummary: z.object({
+    totalItems: z.number(),
+    byAvailability: z.record(z.string(), z.number()),
+  }),
 })
 export type ShopDetail = z.infer<typeof ShopDetailSchema>
 
@@ -145,28 +176,49 @@ export type ShopDetail = z.infer<typeof ShopDetailSchema>
 // says about it right now).
 // ---------------------------------------------------------------------------
 
+/**
+ * `id`, `name`, `nameGu`, `unitType`, `defaultUnitLabel` and `imageUrl` are
+ * present wherever a product appears. `categorySlug` in particular is
+ * NEVER returned by the real API — the API only ever gives a raw
+ * `categoryId` (no join to `Category`), so any UI that groups/labels by
+ * category slug must treat it as absent when running against the real
+ * client. `brand`/`mrp`/`isLooseGood` are present for shop-inventory-derived
+ * products (the API includes the full `Product` row there) but absent from
+ * the minimal product stub embedded in single-item search results.
+ */
 export const ProductSchema = z.object({
   id: z.string(),
   name: z.string(),
   nameGu: z.string(),
-  brand: z.string().nullable(),
-  categoryId: z.string(),
-  categorySlug: z.string(),
+  brand: z.string().nullable().optional(),
+  categoryId: z.string().optional(),
+  categorySlug: z.string().optional(),
   unitType: UnitTypeSchema,
   defaultUnitLabel: z.string(),
-  mrp: z.number().nullable(),
+  mrp: z.number().nullable().optional(),
   imageUrl: z.string().nullable(),
-  isLooseGood: z.boolean(),
+  isLooseGood: z.boolean().optional(),
 })
 export type Product = z.infer<typeof ProductSchema>
 
-/** What one shop currently says about one product. Never a quantity. */
+/**
+ * What one shop currently says about one product. Never a quantity.
+ *
+ * The raw `availability`/`availabilityUpdatedAt`/`availabilitySource` triple
+ * is present wherever the API returns a `ShopInventory` row directly (shop
+ * inventory browsing, and product detail/multi-item-search once the real
+ * client has cross-referenced shop inventories). Single-item search
+ * (`GET /api/search`) instead precomputes a `badge` server-side and never
+ * exposes the raw pair at all — see `BadgeSchema` above and
+ * `AvailabilityBadge.tsx`, which renders whichever of the two it's given.
+ */
 export const OfferSchema = z.object({
   shopId: z.string(),
   price: z.number(),
-  availability: AvailabilitySchema,
-  availabilityUpdatedAt: z.string(),
-  availabilitySource: AvailabilitySourceSchema,
+  availability: AvailabilitySchema.nullable().optional(),
+  availabilityUpdatedAt: z.string().nullable().optional(),
+  availabilitySource: AvailabilitySourceSchema.optional(),
+  badge: BadgeSchema.optional(),
 })
 export type Offer = z.infer<typeof OfferSchema>
 
@@ -224,6 +276,12 @@ export const GetProductDetailRequestSchema = z.object({
   productId: z.string(),
   location: GeoPointSchema,
   radiusMeters: RadiusMetersSchema,
+  /** The API has no `GET /api/products/:id` — the real client locates a
+   * product across nearby shops by matching this name against each shop's
+   * inventory (`GET /api/shops/:id/inventory?query=`). Supplied by whichever
+   * screen linked here (search results / a shop's product grid), since it
+   * already has the full product object in hand. Unused by the mock. */
+  productName: z.string().optional(),
 })
 export type GetProductDetailRequest = z.infer<typeof GetProductDetailRequestSchema>
 
@@ -414,20 +472,49 @@ export type RequestOtpRequest = z.infer<typeof RequestOtpRequestSchema>
 
 export const VerifyOtpRequestSchema = z.object({
   phone: z.string(),
-  otp: z.string().length(6),
+  otp: z.string().min(1),
 })
 export type VerifyOtpRequest = z.infer<typeof VerifyOtpRequestSchema>
 
+/** The API's `PublicUser` — the Prisma `User` row with `passwordHash`
+ * stripped (never sent to any client). */
 export const AuthUserSchema = z.object({
   id: z.string(),
   name: z.string(),
   phone: z.string(),
+  email: z.string().nullable().optional(),
   role: UserRoleSchema,
+  defaultAddressId: z.string().nullable().optional(),
+  preferredLanguage: z.string().optional(),
+  createdAt: z.string().optional(),
 })
 export type AuthUser = z.infer<typeof AuthUserSchema>
 
-export const SessionSchema = z.object({
-  token: z.string(),
-  user: AuthUserSchema,
+export const AuthTokensSchema = z.object({
+  accessToken: z.string(),
+  refreshToken: z.string(),
 })
-export type Session = z.infer<typeof SessionSchema>
+export type AuthTokens = z.infer<typeof AuthTokensSchema>
+
+export const VerifyOtpResponseSchema = AuthTokensSchema.extend({
+  user: AuthUserSchema,
+  isNewUser: z.boolean(),
+})
+export type VerifyOtpResponse = z.infer<typeof VerifyOtpResponseSchema>
+
+/** Input for the first-time-customer profile step
+ * (`POST /api/auth/customer/profile`) — an address with no `id` yet. */
+export const CreateAddressInputSchema = AddressSchema.omit({ id: true })
+export type CreateAddressInput = z.infer<typeof CreateAddressInputSchema>
+
+export const CompleteProfileRequestSchema = z.object({
+  name: z.string().min(1),
+  address: CreateAddressInputSchema,
+})
+export type CompleteProfileRequest = z.infer<typeof CompleteProfileRequestSchema>
+
+export const CompleteProfileResponseSchema = z.object({
+  user: AuthUserSchema,
+  address: AddressSchema,
+})
+export type CompleteProfileResponse = z.infer<typeof CompleteProfileResponseSchema>

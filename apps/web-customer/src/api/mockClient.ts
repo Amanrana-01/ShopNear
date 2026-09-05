@@ -4,7 +4,8 @@ import type {
   GetProductDetailRequest, ShopOffer, GetShopInventoryRequest,
   MultiItemSearchRequest, MultiItemSearchResponse, MatchedItem, ShopCoverage,
   CreateOrderRequest, Order, OrderItem, SubmitReviewRequest, RaiseDisputeRequest,
-  Dispute, RequestOtpRequest, VerifyOtpRequest, Session, AuthUser, Product, GeoPoint,
+  Dispute, RequestOtpRequest, VerifyOtpRequest, VerifyOtpResponse, AuthUser, Product, GeoPoint,
+  CompleteProfileRequest, CompleteProfileResponse, Address,
 } from '@shopnear/shared'
 import type { ShopNearApi, ProductDetailResponse } from './client'
 import { LOCATION_PRESETS } from './fixtures/location'
@@ -65,7 +66,9 @@ function liveShopSummary(shopId: string, location: GeoPoint): ShopSummary | unde
   if (!base || !detail) return undefined
   return {
     ...base,
-    distanceMeters: Math.round(haversineMetres(location.lat, location.lng, base.lat, base.lng)),
+    // Fixture shops always carry coordinates; only the API's minimal search
+    // stub omits them, and that path never reaches this function.
+    distanceMeters: Math.round(haversineMetres(location.lat, location.lng, base.lat!, base.lng!)),
     isOpenNow: isOpenNow(detail.openingHours),
   }
 }
@@ -184,11 +187,15 @@ export const mockClient: ShopNearApi = {
     return shops
   },
 
-  async getShop(shopId: string) {
+  async getShop(shopId: string, location: GeoPoint) {
     await latency()
     const detail = SHOP_DETAILS.get(shopId)
     if (!detail) throw new Error('Shop not found')
-    return { ...detail, isOpenNow: isOpenNow(detail.openingHours) } satisfies ShopDetail
+    return {
+      ...detail,
+      isOpenNow: isOpenNow(detail.openingHours),
+      distanceMeters: Math.round(haversineMetres(location.lat, location.lng, detail.lat!, detail.lng!)),
+    } satisfies ShopDetail
   },
 
   async getShopInventory(req: GetShopInventoryRequest) {
@@ -318,7 +325,7 @@ export const mockClient: ShopNearApi = {
     await latency(500, 400)
     const detail = SHOP_DETAILS.get(req.shopId)
     if (!detail) throw new Error('Shop not found')
-    const shopSummary = liveShopSummary(req.shopId, { lat: detail.lat, lng: detail.lng })!
+    const shopSummary = liveShopSummary(req.shopId, { lat: detail.lat!, lng: detail.lng! })!
 
     const items: OrderItem[] = req.items.map((line) => {
       const product = PRODUCT_BY_ID.get(line.productId)
@@ -332,7 +339,7 @@ export const mockClient: ShopNearApi = {
       }
     })
     const subtotal = Number(items.reduce((sum, i) => sum + i.lineTotal, 0).toFixed(2))
-    const deliveryFee = req.type === 'DELIVERY' ? detail.deliveryFee : 0
+    const deliveryFee = req.type === 'DELIVERY' ? (detail.deliveryFee ?? 0) : 0
     const total = Number((subtotal + deliveryFee).toFixed(2))
 
     if (req.paymentMode === 'MOCK_ONLINE' && req.simulatePaymentOutcome === 'failure') {
@@ -399,25 +406,36 @@ export const mockClient: ShopNearApi = {
     }
   },
 
-  async requestOtp(req: RequestOtpRequest) {
+  async requestOtp(_req: RequestOtpRequest) {
     await latency(400, 300)
-    return { devOtp: DEMO_OTP }
+    return { sent: true }
   },
 
-  async verifyOtp(req: VerifyOtpRequest): Promise<Session> {
+  async verifyOtp(req: VerifyOtpRequest): Promise<VerifyOtpResponse> {
     await latency(400, 300)
     if (req.otp !== DEMO_OTP) throw new Error('Incorrect OTP. Please try again.')
-    const user: AuthUser = {
-      id: `user_${req.phone}`, name: 'Asha Shah', phone: req.phone, role: 'CUSTOMER',
-    }
-    const session: Session = { token: nextId('token'), user }
-    writeJson(SESSION_KEY, session)
-    return session
+    const existing = readJson<{ user: AuthUser } | null>(SESSION_KEY, null)
+    const isNewUser = !existing || existing.user.phone !== req.phone
+    const user: AuthUser = existing && !isNewUser
+      ? existing.user
+      : { id: `user_${req.phone}`, name: req.phone, phone: req.phone, role: 'CUSTOMER', defaultAddressId: null }
+    writeJson(SESSION_KEY, { user })
+    return { user, isNewUser, accessToken: nextId('access'), refreshToken: nextId('refresh') }
+  },
+
+  async completeProfile(req: CompleteProfileRequest): Promise<CompleteProfileResponse> {
+    await latency(300, 200)
+    const session = readJson<{ user: AuthUser } | null>(SESSION_KEY, null)
+    if (!session) throw new Error('Not logged in')
+    const address: Address = { id: nextId('address'), ...req.address }
+    const user: AuthUser = { ...session.user, name: req.name, defaultAddressId: address.id }
+    writeJson(SESSION_KEY, { user })
+    return { user, address }
   },
 
   async getCurrentUser() {
     await latency(80, 60)
-    const session = readJson<Session | null>(SESSION_KEY, null)
+    const session = readJson<{ user: AuthUser } | null>(SESSION_KEY, null)
     return session?.user ?? null
   },
 

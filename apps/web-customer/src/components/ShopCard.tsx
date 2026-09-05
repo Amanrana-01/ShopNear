@@ -5,7 +5,9 @@ import { RatingDisplay } from '@/components/ui/StarRating'
 import { IconTruck, IconStore } from '@/components/ui/Icon'
 import { cn } from '@/lib/utils'
 
-const SHOP_TYPE_LABEL: Record<ShopSummary['type'], string> = {
+// Keyed loosely rather than by `ShopSummary['type']`: search results return a
+// minimal shop stub without `type`, so the lookup has to tolerate its absence.
+const SHOP_TYPE_LABEL: Record<string, string> = {
   KIRANA: 'Kirana', GENERAL: 'General store', STATIONERY: 'Stationery', HARDWARE: 'Hardware',
   CHEMIST: 'Chemist', BAKERY: 'Bakery', DAIRY: 'Dairy', FARSAN: 'Farsan', VEGETABLE: 'Vegetables',
 }
@@ -32,10 +34,12 @@ export function ShopCard({ shop, style }: { shop: ShopSummary; style?: React.CSS
             {shop.isOpenNow ? 'Open' : 'Closed'}
           </span>
         </div>
-        <p className="mt-0.5 text-xs text-ink/50">{SHOP_TYPE_LABEL[shop.type]} · {shop.address}</p>
+        <p className="mt-0.5 text-xs text-ink/50">
+          {[shop.type ? SHOP_TYPE_LABEL[shop.type] : null, shop.address].filter(Boolean).join(' · ')}
+        </p>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
           <span className="font-semibold text-brand-700">{formatDistance(shop.distanceMeters)} away</span>
-          <RatingDisplay rating={shop.avgRating} count={shop.ratingCount} />
+          <RatingDisplay rating={shop.avgRating ?? 0} count={shop.ratingCount ?? 0} />
           {shop.acceptsDelivery && (
             <span className="inline-flex items-center gap-1 text-ink/50">
               <IconTruck size={12} /> Delivery

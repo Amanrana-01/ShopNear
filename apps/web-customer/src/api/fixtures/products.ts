@@ -262,7 +262,7 @@ export function basePriceFor(product: Product): number {
     'fresh-vegetables': 35, 'fresh-fruits': 90, 'namkeen-chips': 320,
     'namkeen-farsan': 260, 'sweets-mithai': 480,
   }
-  return looseRates[product.categorySlug] ?? 80
+  return looseRates[product.categorySlug ?? ''] ?? 80
 }
 
 /** Search keywords are kept alongside the product in a side map (not on the

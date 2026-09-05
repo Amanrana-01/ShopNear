@@ -12,6 +12,9 @@ export default function Login() {
   const navigate = useNavigate()
   const toast = useToast()
   const { refresh } = useAuth()
+  /** Demo-mode OTP. Never a secret — it is printed to the server console too. */
+  const DEMO_OTP = '123456'
+
   const [step, setStep] = useState<'phone' | 'otp'>('phone')
   const [phone, setPhone] = useState('')
   const [otp, setOtp] = useState('')
@@ -20,7 +23,10 @@ export default function Login() {
 
   const requestOtp = useMutation({
     mutationFn: () => api.requestOtp({ phone }),
-    onSuccess: (res) => { setDevOtp(res.devOtp); setStep('otp') },
+    // The real API never returns the OTP over the wire — it only logs it to the
+    // server console. In demo mode it is always the same fixed code, so the dev
+    // banner shows that constant rather than anything the response carried.
+    onSuccess: () => { setDevOtp(DEMO_OTP); setStep('otp') },
     onError: () => toast.show('Enter a valid 10-digit mobile number', 'error'),
   })
 

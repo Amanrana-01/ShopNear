@@ -7,7 +7,9 @@ export interface CartItem {
   quantity: number
   unitPrice: number
   availability: Offer['availability']
-  availabilityUpdatedAt: string
+  /** Null when the shop has never confirmed this item — the "Ask the shop"
+   *  case, where reserving is still allowed. */
+  availabilityUpdatedAt: string | null
 }
 
 interface CartState {
@@ -71,7 +73,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       } else {
         items.push({
           product, quantity: 1, unitPrice: offer.price,
-          availability: offer.availability, availabilityUpdatedAt: offer.availabilityUpdatedAt,
+          availability: offer.availability, availabilityUpdatedAt: offer.availabilityUpdatedAt ?? null,
         })
       }
       return { shop, items }

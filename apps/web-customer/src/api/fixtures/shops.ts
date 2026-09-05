@@ -73,7 +73,8 @@ export const SHOPS_INTERNAL = SHOP_SEED
       description: s.description,
       phone: '9000000010',
       openingHours: hours,
-      inventoryCount: 0, // filled in by inventory.ts after generation
+      // filled in by inventory.ts after generation
+      inventorySummary: { totalItems: 0, byAvailability: {} },
     }
     return { summary, detail }
   })

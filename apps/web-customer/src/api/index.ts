@@ -1,25 +1,22 @@
 import type { ShopNearApi } from './client'
 import { mockClient } from './mockClient'
+import { realClient } from './realClient'
 
 /**
  * Single switch point between the mock API and the real backend.
  *
- * Today only the mock exists. When the real API is ready, add a
- * `realClient.ts` that implements `ShopNearApi` against
- * `VITE_API_BASE_URL`, then this becomes:
- *
- *   export const api: ShopNearApi = useReal ? realClient : mockClient
- *
+ * The real API is the default data source. Set `VITE_USE_MOCK=true` to
+ * force the fully-offline mock instead (a demo fallback when the API isn't
+ * reachable, or for working on the UI with no backend running at all).
  * Nothing else in the app needs to change — every screen imports `api`
  * from this file only.
+ *
+ * Note: `realClient` itself re-exports the mock's order/checkout methods
+ * verbatim (those endpoints don't exist on the API yet) — see the comment
+ * at the bottom of `realClient.ts`.
  */
-const useReal = import.meta.env.VITE_USE_REAL_API === 'true'
+const useMock = import.meta.env.VITE_USE_MOCK === 'true'
 
-if (useReal) {
-  // eslint-disable-next-line no-console
-  console.warn('[shopnear] VITE_USE_REAL_API=true but no real client is wired up yet — falling back to mock.')
-}
-
-export const api: ShopNearApi = mockClient
+export const api: ShopNearApi = useMock ? mockClient : realClient
 
 export type { ShopNearApi, ProductDetailResponse } from './client'
