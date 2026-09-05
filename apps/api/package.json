@@ -4,20 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "preprisma": "node ./scripts/sync-env.cjs",
-    "prisma": "prisma",
-    "predb:migrate": "node ./scripts/sync-env.cjs",
-    "db:migrate": "prisma migrate dev",
-    "predb:generate": "node ./scripts/sync-env.cjs",
-    "db:generate": "prisma generate",
-    "predb:studio": "node ./scripts/sync-env.cjs",
-    "db:studio": "prisma studio",
-    "predb:seed": "node ./scripts/sync-env.cjs",
-    "db:seed": "tsx prisma/seed.ts",
-    "predb:reset": "node ./scripts/sync-env.cjs",
-    "db:reset": "prisma migrate reset --force",
-    "predev": "node ./scripts/sync-env.cjs",
-    "dev": "tsx watch src/server.ts"
+    "prisma": "dotenv -e ../../.env -- prisma",
+    "db:migrate": "dotenv -e ../../.env -- prisma migrate dev",
+    "db:generate": "dotenv -e ../../.env -- prisma generate",
+    "db:studio": "dotenv -e ../../.env -- prisma studio",
+    "db:seed": "dotenv -e ../../.env -- tsx prisma/seed.ts",
+    "db:reset": "dotenv -e ../../.env -- prisma migrate reset --force",
+    "dev": "dotenv -e ../../.env -- tsx watch src/server.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -35,6 +28,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/supertest": "^7.2.1",
+    "dotenv-cli": "^11.0.0",
     "prisma": "^6.1.0",
     "supertest": "^7.2.2",
     "tsx": "^4.19.0"

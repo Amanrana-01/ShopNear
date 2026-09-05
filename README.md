@@ -86,6 +86,13 @@ npm run db:studio # open Prisma Studio (http://localhost:5555) to browse the dat
 npm run db:reset  # wipe and re-seed the local database
 ```
 
+> **`npm test` truncates the seeded data.** Several test suites clean up
+> their own fixtures against the same local Postgres database, so running
+> `npm test` after `npm run db:reset` leaves the tables empty. If you want
+> to inspect the demo dataset (e.g. in Prisma Studio) after running the
+> tests, re-run `npm run db:reset` afterwards to get it back — an empty
+> database at that point doesn't mean the seed is broken.
+
 Once the API is running, `GET /health` reports API, database, and PostGIS
 status:
 
@@ -121,6 +128,28 @@ production environment.
 **`npm test` fails with a connection error.**
 Confirm the `shopnear-db` container is up (`docker ps`) and that `.env`
 matches `docker-compose.yml`'s port before running tests again.
+
+**Prisma Studio (or a manual query) shows zero rows after running `npm test`.**
+This is expected, not a broken seed — see the note under "Everyday
+commands" above. Run `npm run db:reset` again to get the demo dataset back.
+
+**Verifying the seed is deterministic by hand.**
+`prisma db execute --stdin` needs an explicit `--schema` flag outside its
+own project directory and doesn't print `SELECT` output at all (it's built
+for DDL), and ordering by `id` isn't actually deterministic across resets
+since ids are randomly-generated `cuid()`s — so a hash check needs to order
+by stable content instead. Query Postgres directly, e.g. via
+`docker exec -i shopnear-db psql -U shopnear -d shopnear`:
+
+```sql
+SELECT md5(string_agg(p.name || s.price::text, '' ORDER BY p.name, sh.name)) AS content_hash
+FROM "ShopInventory" s
+JOIN "Product" p ON p.id = s."productId"
+JOIN "Shop" sh ON sh.id = s."shopId";
+```
+
+Run it after two separate `npm run db:reset` runs — the hash should be
+identical both times.
 
 ## The `legacy/` directory
 
