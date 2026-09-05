@@ -8,5 +8,9 @@ export default defineConfig({
     poolOptions: { forks: { singleFork: true } },
     include: ['**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**', 'legacy/**'],
+    // seedHistory.test.ts's beforeAll runs the full catalogue + shops +
+    // history seed sequentially against real Postgres — well over the 10s
+    // default hook timeout.
+    hookTimeout: 60_000,
   },
 })
