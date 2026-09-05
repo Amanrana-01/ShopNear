@@ -3,6 +3,7 @@ import { prisma } from '../../db'
 import * as clock from '../../clock/clock'
 import { badRequest, conflict, forbidden, notFound } from '../../http/errors'
 import { RESERVATION_EXPIRY_HOURS } from '../../config/constants'
+import { emitOrderNew, emitOrderUpdated } from '../../realtime/io'
 import { assertTransition } from './stateMachine'
 import type { CreateOrderInput, ConfirmOrderInput } from './orders.schemas'
 
@@ -95,6 +96,10 @@ export async function createOrder(customerId: string, input: CreateOrderInput) {
       include: { items: true },
     })
   })
+
+  // Spec §9/§12: the shop's incoming-order screen must light up the moment
+  // a reservation lands, without a refresh.
+  emitOrderNew(order.shopId, order)
 
   return order
 }
@@ -283,6 +288,11 @@ export async function confirmOrder(orderId: string, input: ConfirmOrderInput) {
     })
   })
 
+  // Spec §9/§12: whatever branch this landed in (rejected outright,
+  // confirmed, or auto-advanced to READY_FOR_PICKUP), the customer's
+  // tracking screen must update live.
+  emitOrderUpdated(updated.id, updated)
+
   return updated
 }
 
@@ -292,11 +302,13 @@ export async function rejectOrder(orderId: string, reason: string) {
   assertTransition(order.status, 'REJECTED_BY_SHOP', order.type)
 
   const now = clock.now()
-  return prisma.order.update({
+  const updated = await prisma.order.update({
     where: { id: order.id },
     data: { status: 'REJECTED_BY_SHOP', rejectedAt: now, rejectionReason: reason },
     include: { items: true },
   })
+  emitOrderUpdated(updated.id, updated)
+  return updated
 }
 
 /** Merchant marks a DELIVERY order as out with the delivery person. */
@@ -305,11 +317,13 @@ export async function markOutForDelivery(orderId: string) {
   assertTransition(order.status, 'OUT_FOR_DELIVERY', order.type)
 
   const now = clock.now()
-  return prisma.order.update({
+  const updated = await prisma.order.update({
     where: { id: order.id },
     data: { status: 'OUT_FOR_DELIVERY', outForDeliveryAt: now },
     include: { items: true },
   })
+  emitOrderUpdated(updated.id, updated)
+  return updated
 }
 
 /**
@@ -327,11 +341,13 @@ export async function completeOrder(orderId: string, pickupCode?: string) {
   }
 
   const now = clock.now()
-  return prisma.order.update({
+  const updated = await prisma.order.update({
     where: { id: order.id },
     data: { status: 'COMPLETED', completedAt: now, paymentStatus: 'PAID' },
     include: { items: true },
   })
+  emitOrderUpdated(updated.id, updated)
+  return updated
 }
 
 /** Customer-initiated cancellation — ownership checked independently of role. */
@@ -343,11 +359,13 @@ export async function cancelOrder(orderId: string, customerId: string) {
   assertTransition(order.status, 'CANCELLED_BY_CUSTOMER', order.type)
 
   const now = clock.now()
-  return prisma.order.update({
+  const updated = await prisma.order.update({
     where: { id: order.id },
     data: { status: 'CANCELLED_BY_CUSTOMER', cancelledAt: now },
     include: { items: true },
   })
+  emitOrderUpdated(updated.id, updated)
+  return updated
 }
 
 export type { FulfilmentStatus, OrderType }

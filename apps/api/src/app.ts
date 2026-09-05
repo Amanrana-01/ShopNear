@@ -9,6 +9,8 @@ import { shopsRouter } from './modules/shops/shops.routes'
 import { searchRouter } from './modules/search/search.routes'
 import { merchantsRouter, UPLOAD_DIR } from './modules/merchants/registration.routes'
 import { ordersRouter } from './modules/orders/orders.routes'
+import { reviewsRouter } from './modules/reviews/reviews.routes'
+import { disputesRouter } from './modules/disputes/disputes.routes'
 
 /**
  * Every error the API returns uses one envelope, so all three clients can
@@ -66,6 +68,11 @@ export function createApp(): Express {
   apiRouter.use('/shops', shopsRouter)
   apiRouter.use('/search', searchRouter)
   apiRouter.use('/orders', ordersRouter)
+  // Reviews and disputes each mount their own full paths (e.g.
+  // `/orders/:orderId/reviews`, `/admin/disputes`) rather than a single
+  // path prefix — see the routers themselves.
+  apiRouter.use(reviewsRouter)
+  apiRouter.use(disputesRouter)
   app.use('/api', apiRouter)
 
   app.use((_req: Request, res: Response) => {
