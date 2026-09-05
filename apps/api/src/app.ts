@@ -7,6 +7,7 @@ import { errorMiddleware } from './http/errors'
 import { authRouter } from './modules/auth/auth.routes'
 import { shopsRouter } from './modules/shops/shops.routes'
 import { searchRouter } from './modules/search/search.routes'
+import { merchantsRouter, UPLOAD_DIR } from './modules/merchants/registration.routes'
 
 /**
  * Every error the API returns uses one envelope, so all three clients can
@@ -54,8 +55,13 @@ export function createApp(): Express {
     }
   })
 
+  // Mock uploaded documents (spec R11) — served statically, format-validated
+  // only, never verified.
+  app.use('/uploads', express.static(UPLOAD_DIR))
+
   const apiRouter = express.Router()
   apiRouter.use('/auth', authRateLimiter, authRouter)
+  apiRouter.use('/merchants', merchantsRouter)
   apiRouter.use('/shops', shopsRouter)
   apiRouter.use('/search', searchRouter)
   app.use('/api', apiRouter)
