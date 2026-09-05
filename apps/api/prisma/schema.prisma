@@ -396,3 +396,13 @@ model SearchLog {
   @@index([resultCount])
   @@index([createdAt])
 }
+
+/// Small key/value store for runtime-adjustable settings: the demo clock
+/// offset, search ranking weights, and availability decay thresholds.
+/// Persisted (not in-memory) so time-travel survives an API restart and so
+/// the admin panel's sliders have somewhere to write.
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
