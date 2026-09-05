@@ -4,12 +4,20 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "preprisma": "node ./scripts/sync-env.cjs",
     "prisma": "prisma",
+    "predb:migrate": "node ./scripts/sync-env.cjs",
     "db:migrate": "prisma migrate dev",
+    "predb:generate": "node ./scripts/sync-env.cjs",
     "db:generate": "prisma generate",
+    "predb:studio": "node ./scripts/sync-env.cjs",
     "db:studio": "prisma studio",
+    "predb:seed": "node ./scripts/sync-env.cjs",
     "db:seed": "tsx prisma/seed.ts",
-    "db:reset": "prisma migrate reset --force"
+    "predb:reset": "node ./scripts/sync-env.cjs",
+    "db:reset": "prisma migrate reset --force",
+    "predev": "node ./scripts/sync-env.cjs",
+    "dev": "tsx watch src/server.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -18,10 +26,17 @@
     "@prisma/client": "^6.1.0",
     "@shopnear/shared": "*",
     "argon2": "^0.45.1",
-    "dotenv": "^16.4.0"
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.0",
+    "express": "^5.2.1",
+    "helmet": "^8.3.0"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/supertest": "^7.2.1",
     "prisma": "^6.1.0",
+    "supertest": "^7.2.2",
     "tsx": "^4.19.0"
   }
 }
