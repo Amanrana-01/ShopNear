@@ -71,3 +71,27 @@ export function requireShopOwnership(paramName: string): RequestHandler {
     next()
   })
 }
+
+/**
+ * Same idea as `requireShopOwnership`, but for routes addressed by order id
+ * rather than shop id (every merchant order action: confirm, reject,
+ * out-for-delivery, complete). Loads the order's shop and compares its
+ * `ownerId` to the token's subject — merchant B must never be able to act on
+ * merchant A's order, and a merchant who owns two shops must still only
+ * touch orders belonging to shops they actually own (spec: never assume one
+ * shop per merchant).
+ */
+export function requireOrderShopOwnership(paramName: string): RequestHandler {
+  return asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {
+    const auth = (req as AuthenticatedRequest).auth
+    const orderId = req.params[paramName]
+    if (!orderId) return next(notFound('Order not found.'))
+
+    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { shop: true } })
+    if (!order) return next(notFound('Order not found.'))
+    if (order.shop.ownerId !== auth.sub) {
+      return next(forbidden('You do not own the shop this order belongs to.'))
+    }
+    next()
+  })
+}

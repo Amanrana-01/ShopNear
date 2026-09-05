@@ -8,6 +8,7 @@ import { authRouter } from './modules/auth/auth.routes'
 import { shopsRouter } from './modules/shops/shops.routes'
 import { searchRouter } from './modules/search/search.routes'
 import { merchantsRouter, UPLOAD_DIR } from './modules/merchants/registration.routes'
+import { ordersRouter } from './modules/orders/orders.routes'
 
 /**
  * Every error the API returns uses one envelope, so all three clients can
@@ -64,6 +65,7 @@ export function createApp(): Express {
   apiRouter.use('/merchants', merchantsRouter)
   apiRouter.use('/shops', shopsRouter)
   apiRouter.use('/search', searchRouter)
+  apiRouter.use('/orders', ordersRouter)
   app.use('/api', apiRouter)
 
   app.use((_req: Request, res: Response) => {
