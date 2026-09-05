@@ -4,6 +4,7 @@ import { createRng, SEED } from './random'
 import { seedCatalogue } from './seedCatalogue'
 import { seedUsersAndShops } from './seedShops'
 import { ANCHOR, haversineMetres } from './geo'
+import { STARTER_BY_TYPE, PLAUSIBLE_CATEGORIES_BY_TYPE, UNIVERSAL_TAIL_CATEGORIES, BROAD_SHOP_TYPES } from './data/products'
 
 let ctx: Awaited<ReturnType<typeof seedUsersAndShops>>
 
@@ -94,6 +95,49 @@ describe('users, shops, and inventory seed', () => {
     for (const g of grouped) {
       expect(g._count).toBeGreaterThanOrEqual(80)
       expect(g._count).toBeLessThanOrEqual(200)
+    }
+  })
+
+  it('gives every specialist shop a type-coherent inventory, not a uniform draw across the catalogue', async () => {
+    // Regression test for the original bug: `sample(productNames, n)` drew
+    // from all 342 products regardless of shop type, so e.g. the hardware
+    // store ended up selling wheat flour. Each specialist type (everything
+    // but the broad KIRANA/GENERAL, which genuinely span most of the
+    // non-specialist catalogue) must draw only from its own starter kit,
+    // categories it plausibly carries, or the small universal "counter
+    // snacks" tail — never a category with nothing to do with the shop.
+    const shops = await prisma.shop.findMany({
+      where: { type: { notIn: BROAD_SHOP_TYPES } },
+      select: { id: true, name: true, type: true },
+    })
+    expect(shops.length).toBeGreaterThan(0) // sanity: the filter actually matched shops
+
+    for (const shop of shops) {
+      const rows = await prisma.shopInventory.findMany({
+        where: { shopId: shop.id },
+        select: { product: { select: { name: true, category: { select: { slug: true } } } } },
+      })
+      expect(rows.length).toBeGreaterThan(0)
+
+      const allowedCategories = new Set([
+        ...PLAUSIBLE_CATEGORIES_BY_TYPE[shop.type],
+        ...UNIVERSAL_TAIL_CATEGORIES,
+      ])
+      const foreign = rows.filter((r) => !allowedCategories.has(r.product.category.slug))
+      expect(foreign.map((r) => r.product.name), `${shop.name} (${shop.type}) stocks foreign items`)
+        .toEqual([])
+
+      // Strong majority (not just "no foreign items") should come from the
+      // shop's own starter kit or its plausibly-adjacent categories — the
+      // wide "universal tail" (soft drinks, tea, snacks) stays a minority.
+      const ownNames = new Set(STARTER_BY_TYPE[shop.type])
+      const plausibleOnly = new Set(PLAUSIBLE_CATEGORIES_BY_TYPE[shop.type])
+      const onBrand = rows.filter(
+        (r) => ownNames.has(r.product.name) || plausibleOnly.has(r.product.category.slug),
+      )
+      const fraction = onBrand.length / rows.length
+      expect(fraction, `${shop.name} (${shop.type}) is only ${Math.round(fraction * 100)}% on-brand`)
+        .toBeGreaterThanOrEqual(0.5)
     }
   })
 

@@ -4,6 +4,10 @@ import type { Rng } from './random'
 import { ANCHOR, offsetPoint } from './geo'
 import { SHOP_SEED } from './data/shops'
 import { SEED_NOW } from './clock'
+import {
+  PRODUCT_SEED, STARTER_BY_TYPE, PLAUSIBLE_CATEGORIES_BY_TYPE,
+  UNIVERSAL_TAIL_CATEGORIES, BROAD_SHOP_TYPES,
+} from './data/products'
 
 export const DEMO_PASSWORD = 'demo1234'
 export const ADMIN_PASSWORD = 'admin1234'
@@ -64,6 +68,14 @@ export async function seedUsersAndShops(
   // reuse the same user instead of creating a duplicate merchant account.
   const ownerIdByPhone = new Map<string, string>()
 
+  // Product names in fixed PRODUCT_SEED order, grouped by category — used to
+  // top up a shop's inventory with still-on-brand stock (spec R10) instead of
+  // sampling uniformly across the whole catalogue. Order is fixed by the
+  // static PRODUCT_SEED array, not by any DB read, so this stays deterministic.
+  const namesByCategories = (slugs: string[]): string[] =>
+    PRODUCT_SEED.filter((p) => slugs.includes(p.categorySlug)).map((p) => p.name)
+  const universalTailNames = namesByCategories(UNIVERSAL_TAIL_CATEGORIES)
+
   for (const s of SHOP_SEED) {
     let ownerId = ownerIdByPhone.get(s.ownerPhone)
     if (!ownerId) {
@@ -92,7 +104,35 @@ export async function seedUsersAndShops(
       WHERE id = ${shop.id}
     `
 
-    const chosen = rng.sample(productNames, rng.int(80, 200))
+    // Spec R10: an "overlapping but not identical" catalogue. Broad general
+    // grocery shops (KIRANA/GENERAL) plausibly stock most of the
+    // non-specialist catalogue, so they draw a bigger, more varied basket;
+    // specialists draw a smaller one so their own domain stays dominant.
+    const isBroad = BROAD_SHOP_TYPES.includes(s.type)
+    // Narrow specialist types keep their target close to the 80 floor: their
+    // starter + plausible-category pool covers 84-97 products (see
+    // products.ts), so a bigger target would force more of the inventory
+    // into the fully unrestricted final fallback, diluting the shop's type.
+    const target = isBroad ? rng.int(140, 200) : rng.int(80, 88)
+    const starterNames = STARTER_BY_TYPE[s.type] ?? []
+    const plausibleNames = namesByCategories(PLAUSIBLE_CATEGORIES_BY_TYPE[s.type] ?? [])
+
+    // 1. Every shop starts from its own curated starter kit — the products it
+    //    genuinely sells (spec R10). 2. If that falls short of the target
+    //    (every starter kit is smaller than the 80-200 target range), top up
+    //    from categories the shop type plausibly carries. 3. Then a modest
+    //    tail of near-universal convenience items. 4. Only as a last resort,
+    //    fall back to the fully unrestricted catalogue.
+    const chosen = new Set<string>(starterNames)
+    const topUp = (pool: string[], need: number) => {
+      if (need <= 0) return
+      const candidates = pool.filter((name) => !chosen.has(name))
+      for (const name of rng.sample(candidates, need)) chosen.add(name)
+    }
+    topUp(plausibleNames, target - chosen.size)
+    topUp(universalTailNames, target - chosen.size)
+    topUp(productNames, target - chosen.size)
+
     for (const name of chosen) {
       const ageMinutes = rng.pick(AGE_BUCKETS_MINUTES)
       const updatedAt = new Date(SEED_NOW.getTime() - ageMinutes * 60_000)

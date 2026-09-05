@@ -3224,3 +3224,61 @@ export const STARTER_BY_TYPE: Record<ShopType, string[]> = {
     "Sapota Chikoo (loose)",
   ],
 }
+
+/**
+ * Categories a broad general-grocery shop (KIRANA/GENERAL) plausibly stocks
+ * end to end — every child category under groceries/dairy/bakery/personal
+ * care/household/beverages/snacks. Deliberately excludes the specialist
+ * domains (stationery, hardware, chemist, vegetable, farsan) since a kirana
+ * does not sell tools or fresh produce in this dataset.
+ */
+const GROCERY_GENERAL_CATEGORIES = [
+  "flours-grains", "pulses-dals", "rice", "edible-oils", "spices-masala", "sugar-jaggery",
+  "milk-curd", "butter-ghee", "cheese-paneer",
+  "bread-buns", "biscuits-cookies", "cakes-rusks",
+  "bath-soap", "shampoo-haircare", "oral-care",
+  "cleaning-supplies", "laundry", "pooja-items",
+  "tea-coffee", "soft-drinks", "juices-health-drinks",
+  "namkeen-chips", "chocolates-candy", "instant-noodles",
+]
+
+/**
+ * Categories each shop type plausibly carries beyond its curated starter kit
+ * (spec R10: seed §"topping up" note) — used so a shop whose starter kit is
+ * smaller than its target inventory count (e.g. DAIRY's 20) tops up with
+ * still-on-brand stock instead of a uniform draw across the whole catalogue.
+ * KIRANA/GENERAL get the whole non-specialist catalogue; each specialist
+ * type gets its own domain plus a small, realistic set of adjacent
+ * categories (e.g. a chemist selling soap and shampoo, a dairy booth also
+ * selling bread and sweets).
+ */
+export const PLAUSIBLE_CATEGORIES_BY_TYPE: Record<ShopType, string[]> = {
+  KIRANA: GROCERY_GENERAL_CATEGORIES,
+  GENERAL: GROCERY_GENERAL_CATEGORIES,
+  STATIONERY: ["notebooks-paper", "pens-pencils", "art-craft", "chocolates-candy", "namkeen-chips",
+               "pooja-items", "instant-noodles"],
+  HARDWARE: ["tools", "electrical", "paints", "cleaning-supplies", "laundry", "pooja-items"],
+  CHEMIST: ["otc-medicines", "first-aid", "baby-care", "bath-soap", "oral-care", "shampoo-haircare"],
+  BAKERY: ["bread-buns", "biscuits-cookies", "cakes-rusks", "milk-curd", "butter-ghee",
+           "tea-coffee", "soft-drinks", "juices-health-drinks", "chocolates-candy",
+           "cheese-paneer", "sugar-jaggery"],
+  DAIRY: ["milk-curd", "butter-ghee", "cheese-paneer", "bread-buns", "tea-coffee",
+          "sweets-mithai", "cakes-rusks", "sugar-jaggery"],
+  FARSAN: ["namkeen-farsan", "sweets-mithai", "biscuits-cookies", "namkeen-chips", "tea-coffee",
+           "cakes-rusks", "sugar-jaggery", "bread-buns"],
+  VEGETABLE: ["fresh-vegetables", "fresh-fruits", "namkeen-farsan", "sweets-mithai", "pooja-items"],
+}
+
+/**
+ * Even a specialist shop keeps a few of these on the counter (spec R10's
+ * "modest random tail from the wider catalogue"), which is also what keeps
+ * the same everyday product comparable in price across otherwise-unrelated
+ * shop types. Used only once a shop's own starter + plausible categories
+ * are exhausted, ahead of falling back to the fully unrestricted catalogue.
+ */
+export const UNIVERSAL_TAIL_CATEGORIES = [
+  "soft-drinks", "tea-coffee", "namkeen-chips", "chocolates-candy", "biscuits-cookies",
+]
+
+/** Shop types broad enough to plausibly stock most of the non-specialist catalogue. */
+export const BROAD_SHOP_TYPES: ShopType[] = ["KIRANA", "GENERAL"]
