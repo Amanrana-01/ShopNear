@@ -74,7 +74,7 @@ export default {
           '50%': { transform: 'scale(0.94)' },
           '100%': { transform: 'scale(1)' },
         },
-        pulse-ring: {
+        'pulse-ring': {
           '0%': { boxShadow: '0 0 0 0 rgb(123 47 190 / 0.35)' },
           '100%': { boxShadow: '0 0 0 14px rgb(123 47 190 / 0)' },
         },
