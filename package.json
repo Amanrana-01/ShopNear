@@ -2,8 +2,13 @@
   "name": "shopnear",
   "version": "1.0.0",
   "private": true,
-  "workspaces": ["apps/*", "packages/*"],
-  "engines": { "node": ">=22" },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
@@ -11,11 +16,15 @@
     "db:studio": "npm --workspace @shopnear/api run db:studio",
     "dev:api": "npm --workspace @shopnear/api run dev",
     "dev:web-customer": "npm --workspace @shopnear/web-customer run dev",
+    "dev:web-merchant": "npm --workspace @shopnear/web-merchant run dev",
     "dev": "npm run dev:api"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "typescript": "^5.6.0",
-    "vitest": "^2.1.0",
-    "@types/node": "^22.0.0"
+    "vitest": "^2.1.0"
+  },
+  "dependencies": {
+    "motion": "^13.2.0"
   }
 }
