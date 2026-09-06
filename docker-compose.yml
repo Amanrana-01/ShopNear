@@ -1,0 +1,28 @@
+services:
+  db:
+    # postgis/postgis bundles PostGIS 3.4 with Postgres 16 — no extension
+    # compilation needed, which keeps offline setup to a single image pull.
+    #
+    # Host port 5436 (not 5432/5433/5434/5435): avoids colliding with a
+    # default local Postgres, a native Postgres service already bound to
+    # 5434, and other projects' containers already bound to 5433 and 5435
+    # on this machine.
+    image: postgis/postgis:16-3.4
+    container_name: shopnear-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: shopnear
+      POSTGRES_PASSWORD: shopnear
+      POSTGRES_DB: shopnear
+    ports:
+      - "5436:5432"
+    volumes:
+      - shopnear-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shopnear -d shopnear"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  shopnear-pgdata:

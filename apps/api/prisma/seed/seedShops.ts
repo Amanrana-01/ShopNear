@@ -1,0 +1,159 @@
+import type { PrismaClient } from '@prisma/client'
+import argon2 from 'argon2'
+import type { Rng } from './random'
+import { ANCHOR, offsetPoint } from './geo'
+import { SHOP_SEED } from './data/shops'
+import { SEED_NOW } from './clock'
+import {
+  PRODUCT_SEED, STARTER_BY_TYPE, PLAUSIBLE_CATEGORIES_BY_TYPE,
+  UNIVERSAL_TAIL_CATEGORIES, BROAD_SHOP_TYPES,
+} from './data/products'
+
+export const DEMO_PASSWORD = 'demo1234'
+export const ADMIN_PASSWORD = 'admin1234'
+
+const CUSTOMER_NAMES = [
+  'Asha Shah', 'Nikhil Desai', 'Priya Mehta', 'Rohit Joshi',
+  'Sneha Trivedi', 'Amit Rana', 'Kavita Bhatt', 'Manish Solanki',
+]
+
+const OPENING_HOURS = {
+  mon: { open: '09:00', close: '21:00' }, tue: { open: '09:00', close: '21:00' },
+  wed: { open: '09:00', close: '21:00' }, thu: { open: '09:00', close: '21:00' },
+  fri: { open: '09:00', close: '21:00' }, sat: { open: '09:00', close: '21:00' },
+  sun: { open: '10:00', close: '14:00' }, isTemporarilyClosed: false,
+}
+
+/** Ages in minutes, chosen so every badge in spec §7 appears in the UI. */
+const AGE_BUCKETS_MINUTES = [5, 45, 90, 200, 600, 1_500, 4_000, 8_000, 13_000]
+
+export async function seedUsersAndShops(
+  prisma: PrismaClient,
+  rng: Rng,
+  catalogue: { productsByName: Record<string, { id: string; basePrice: number }> },
+) {
+  const demoHash = await argon2.hash(DEMO_PASSWORD)
+  const adminHash = await argon2.hash(ADMIN_PASSWORD)
+
+  const admin = await prisma.user.create({
+    data: { name: 'ShopNear Admin', phone: '9000000000', email: 'admin@shopnear.local',
+            role: 'ADMIN', passwordHash: adminHash },
+  })
+
+  // The default customer sits at the anchor; shop distances are measured
+  // from here, which is what the "80 m away" copy in the demo refers to.
+  const customers: string[] = []
+  let defaultCustomerAddress = { lat: ANCHOR.lat, lng: ANCHOR.lng }
+
+  for (let i = 0; i < CUSTOMER_NAMES.length; i++) {
+    const phone = `900000000${i + 1}`
+    const customer = await prisma.user.create({
+      data: { name: CUSTOMER_NAMES[i], phone, role: 'CUSTOMER', preferredLanguage: 'en' },
+    })
+    const at = i === 0 ? ANCHOR : offsetPoint(ANCHOR.lat, ANCHOR.lng, rng.int(200, 2000), rng.int(0, 359))
+    const address = await prisma.address.create({
+      data: { userId: customer.id, label: 'Home', line1: `${rng.int(1, 90)}, Navrangpura`,
+              landmark: 'Near Vijay Cross Road', pincode: '380009', lat: at.lat, lng: at.lng },
+    })
+    await prisma.user.update({
+      where: { id: customer.id }, data: { defaultAddressId: address.id },
+    })
+    if (i === 0) defaultCustomerAddress = { lat: at.lat, lng: at.lng }
+    customers.push(customer.id)
+  }
+
+  const productNames = Object.keys(catalogue.productsByName)
+  const shopIds: string[] = []
+  // Two owners in SHOP_SEED run a second shop, so we key owners by phone and
+  // reuse the same user instead of creating a duplicate merchant account.
+  const ownerIdByPhone = new Map<string, string>()
+
+  // Product names in fixed PRODUCT_SEED order, grouped by category — used to
+  // top up a shop's inventory with still-on-brand stock (spec R10) instead of
+  // sampling uniformly across the whole catalogue. Order is fixed by the
+  // static PRODUCT_SEED array, not by any DB read, so this stays deterministic.
+  const namesByCategories = (slugs: string[]): string[] =>
+    PRODUCT_SEED.filter((p) => slugs.includes(p.categorySlug)).map((p) => p.name)
+  const universalTailNames = namesByCategories(UNIVERSAL_TAIL_CATEGORIES)
+
+  for (const s of SHOP_SEED) {
+    let ownerId = ownerIdByPhone.get(s.ownerPhone)
+    if (!ownerId) {
+      const owner = await prisma.user.create({
+        data: { name: s.ownerName, phone: s.ownerPhone, role: 'MERCHANT',
+                passwordHash: demoHash, preferredLanguage: rng.pick(['en', 'hi', 'gu'] as const) },
+      })
+      ownerId = owner.id
+      ownerIdByPhone.set(s.ownerPhone, ownerId)
+    }
+    const at = offsetPoint(ANCHOR.lat, ANCHOR.lng, s.distanceMetres, s.bearing)
+    const shop = await prisma.shop.create({
+      data: {
+        ownerId, name: s.name, nameGu: s.nameGu, type: s.type,
+        description: s.description, phone: s.ownerPhone, address: s.address,
+        lat: at.lat, lng: at.lng, status: s.status, openingHours: OPENING_HOURS,
+        acceptsDelivery: s.acceptsDelivery,
+        deliveryRadiusMeters: s.acceptsDelivery ? rng.int(800, 2500) : 0,
+        minOrderValue: s.acceptsDelivery ? rng.pick([99, 149, 199]) : 0,
+        deliveryFee: s.acceptsDelivery ? rng.pick([10, 15, 20]) : 0,
+      },
+    })
+    // Prisma cannot write geography; keep it in step with lat/lng here.
+    await prisma.$executeRaw`
+      UPDATE "Shop" SET location = ST_SetSRID(ST_MakePoint(${at.lng}, ${at.lat}), 4326)::geography
+      WHERE id = ${shop.id}
+    `
+
+    // Spec R10: an "overlapping but not identical" catalogue. Broad general
+    // grocery shops (KIRANA/GENERAL) plausibly stock most of the
+    // non-specialist catalogue, so they draw a bigger, more varied basket;
+    // specialists draw a smaller one so their own domain stays dominant.
+    const isBroad = BROAD_SHOP_TYPES.includes(s.type)
+    // Narrow specialist types keep their target close to the 80 floor: their
+    // starter + plausible-category pool covers 84-97 products (see
+    // products.ts), so a bigger target would force more of the inventory
+    // into the fully unrestricted final fallback, diluting the shop's type.
+    const target = isBroad ? rng.int(140, 200) : rng.int(80, 88)
+    const starterNames = STARTER_BY_TYPE[s.type] ?? []
+    const plausibleNames = namesByCategories(PLAUSIBLE_CATEGORIES_BY_TYPE[s.type] ?? [])
+
+    // 1. Every shop starts from its own curated starter kit — the products it
+    //    genuinely sells (spec R10). 2. If that falls short of the target
+    //    (every starter kit is smaller than the 80-200 target range), top up
+    //    from categories the shop type plausibly carries. 3. Then a modest
+    //    tail of near-universal convenience items. 4. Only as a last resort,
+    //    fall back to the fully unrestricted catalogue.
+    const chosen = new Set<string>(starterNames)
+    const topUp = (pool: string[], need: number) => {
+      if (need <= 0) return
+      const candidates = pool.filter((name) => !chosen.has(name))
+      for (const name of rng.sample(candidates, need)) chosen.add(name)
+    }
+    topUp(plausibleNames, target - chosen.size)
+    topUp(universalTailNames, target - chosen.size)
+    topUp(productNames, target - chosen.size)
+
+    for (const name of chosen) {
+      const ageMinutes = rng.pick(AGE_BUCKETS_MINUTES)
+      const updatedAt = new Date(SEED_NOW.getTime() - ageMinutes * 60_000)
+      const product = catalogue.productsByName[name]
+      await prisma.shopInventory.create({
+        data: {
+          shopId: shop.id, productId: product.id,
+          // ±8% around the product's reference price (spec §11), so the same
+          // item is comparable across shops instead of randomly priced.
+          price: Number((product.basePrice * rng.float(0.92, 1.08)).toFixed(2)),
+          availability: rng.pick(['IN_STOCK', 'IN_STOCK', 'IN_STOCK',
+                                  'USUALLY_AVAILABLE', 'OUT_OF_STOCK', 'UNKNOWN'] as const),
+          availabilityUpdatedAt: updatedAt,
+          availabilitySource: 'SEED',
+          confirmCount: rng.int(0, 25),
+          rejectCount: rng.int(0, 5),
+        },
+      })
+    }
+    shopIds.push(shop.id)
+  }
+
+  return { shopIds, customerIds: customers, adminId: admin.id, defaultCustomerAddress }
+}

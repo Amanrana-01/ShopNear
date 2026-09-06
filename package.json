@@ -1,15 +1,30 @@
 {
-  "name": "shopnear-root",
+  "name": "shopnear",
   "version": "1.0.0",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "install:all": "npm install --prefix backend && npm install --prefix web && npm install --prefix mobile",
-    "dev:backend": "npm run dev --prefix backend",
-    "dev:web": "npm run dev --prefix web",
-    "dev:mobile": "npm run start --prefix mobile",
-    "dev": "npx concurrently \"npm run dev:backend\" \"npm run dev:web\" \"npm run dev:mobile\""
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:reset": "npm --workspace @shopnear/api run db:reset",
+    "db:studio": "npm --workspace @shopnear/api run db:studio",
+    "dev:api": "npm --workspace @shopnear/api run dev",
+    "dev:web-customer": "npm --workspace @shopnear/web-customer run dev",
+    "dev:web-merchant": "npm --workspace @shopnear/web-merchant run dev",
+    "dev": "npm run dev:api"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "dependencies": {
+    "motion": "^13.2.0"
   }
 }

@@ -1,0 +1,137 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-canvas font-sans text-ink antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+/* Visible, on-brand focus rings everywhere — accessibility is not optional. */
+:focus-visible {
+  outline: 2px solid #7B2FBE;
+  outline-offset: 2px;
+}
+
+::selection {
+  background: #EAE0FC;
+}
+
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Horizontal rails (categories, product carousels) scroll but must not show a
+   scrollbar — the overflowing content itself is the affordance, reinforced by
+   the partially-visible next tile. */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Rails snap so a flick always lands on a tile boundary rather than mid-card. */
+.snap-rail {
+  scroll-snap-type: x mandatory;
+  scroll-padding-left: 1rem;
+}
+.snap-rail > * {
+  scroll-snap-align: start;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Framer Motion drives its own timings and already honours the reduced-motion
+   preference via useAppMotion(); this only neutralises CSS-driven animation. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* Discovery band ------------------------------------------------------------
+   Everything above "Shops near you" is browsing: the hero, the merchandised
+   shelves and the category grid. It sits on its own surface — a lilac wash
+   lit by a brand glow, woven with a faint dot grid and closed off with a
+   rounded, shadowed edge — so the shop list underneath reads as a separate,
+   denser mode of the page instead of more of the same scroll.
+   Purely decorative: no contrast-critical text sits on the glows. */
+.discovery-band {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-bottom: 1px solid rgb(123 47 190 / 0.12);
+  border-bottom-left-radius: 1.75rem;
+  border-bottom-right-radius: 1.75rem;
+  background:
+    radial-gradient(115% 78% at 8% -12%, rgb(123 47 190 / 0.20) 0%, rgb(123 47 190 / 0) 62%),
+    radial-gradient(95% 70% at 96% -8%, rgb(45 212 191 / 0.20) 0%, rgb(45 212 191 / 0) 58%),
+    linear-gradient(180deg, #F1E8FE 0%, #EEE7FB 58%, #E9E2F7 100%);
+  box-shadow: 0 12px 28px -20px rgb(61 18 112 / 0.45);
+}
+
+/* Dot weave, strongest at the top and gone by the fold — negative z-index
+   paints it over the band's own background but under the content. */
+.discovery-band::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: radial-gradient(rgb(61 18 112 / 0.08) 1px, transparent 1px);
+  background-size: 18px 18px;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 72%);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 72%);
+}
+
+/* Filter dropdowns size themselves to the space they land in, so a long list
+   can still need to scroll. Give it a slim, on-brand scrollbar — hiding it
+   here would repeat the bug where a ten-option menu looked like a seven. */
+.menu-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(123 47 190 / 0.28) transparent;
+  overscroll-behavior: contain;
+}
+.menu-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.menu-scroll::-webkit-scrollbar-thumb {
+  background: rgb(123 47 190 / 0.28);
+  border-radius: 999px;
+}
+.menu-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
