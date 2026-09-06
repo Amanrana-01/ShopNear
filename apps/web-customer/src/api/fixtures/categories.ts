@@ -71,6 +71,27 @@ const CATEGORY_SEED: CategorySeed[] = [
     { name: 'Namkeen Farsan', nameGu: 'નમકીન ફરસાણ', slug: 'namkeen-farsan', iconName: 'bowl' },
     { name: 'Sweets & Mithai', nameGu: 'મીઠાઈ', slug: 'sweets-mithai', iconName: 'sweet' },
   ] },
+
+  // Demo-density aisles — not in the API seed. Added so the category grid
+  // fills two complete rows on a wide screen instead of leaving a hole, and
+  // because a kirana that sells dry fruit, cereal, ice cream and steel dabbas
+  // is more true to the real shop than one that stops at twelve aisles.
+  { name: 'Dry Fruits', nameGu: 'સૂકો મેવો', slug: 'dry-fruits', iconName: 'nut', children: [
+    { name: 'Nuts & Seeds', nameGu: 'બદામ અને બીજ', slug: 'nuts-seeds', iconName: 'nut' },
+    { name: 'Dried Fruits', nameGu: 'સૂકા ફળો', slug: 'dried-fruits', iconName: 'raisin' },
+  ] },
+  { name: 'Breakfast', nameGu: 'નાસ્તો', slug: 'breakfast', iconName: 'cereal', children: [
+    { name: 'Cereals & Flakes', nameGu: 'સિરિયલ અને ફ્લેક્સ', slug: 'cereals-flakes', iconName: 'cereal' },
+    { name: 'Jams & Spreads', nameGu: 'જામ અને સ્પ્રેડ', slug: 'jams-spreads', iconName: 'jam' },
+  ] },
+  { name: 'Frozen', nameGu: 'ફ્રોઝન', slug: 'frozen', iconName: 'icecream', children: [
+    { name: 'Ice Cream', nameGu: 'આઈસ્ક્રીમ', slug: 'ice-cream', iconName: 'icecream' },
+    { name: 'Frozen Snacks', nameGu: 'ફ્રોઝન નાસ્તા', slug: 'frozen-snacks', iconName: 'frozen' },
+  ] },
+  { name: 'Home & Kitchen', nameGu: 'ઘર અને રસોડું', slug: 'home-kitchen', iconName: 'utensils', children: [
+    { name: 'Kitchen Tools', nameGu: 'રસોડાનાં સાધનો', slug: 'kitchen-tools', iconName: 'utensils' },
+    { name: 'Storage & Containers', nameGu: 'સ્ટોરેજ અને ડબ્બા', slug: 'storage-containers', iconName: 'container' },
+  ] },
 ]
 
 export const CATEGORIES: Category[] = CATEGORY_SEED.flatMap((top) => {
@@ -93,7 +114,8 @@ export const CATEGORY_BY_SLUG = new Map(CATEGORIES.map((c) => [c.slug, c]))
 const TOP_LEVEL_HUES: Record<string, number> = {
   groceries: 262, dairy: 205, bakery: 28, 'personal-care': 330, household: 168,
   beverages: 15, snacks: 45, stationery: 220, hardware: 15, chemist: 150,
-  vegetables: 120, farsan: 35,
+  vegetables: 120, farsan: 35, 'dry-fruits': 30, breakfast: 40, frozen: 195,
+  'home-kitchen': 250,
 }
 export function hueForCategorySlug(slug: string): number {
   const cat = CATEGORY_BY_SLUG.get(slug)
@@ -102,3 +124,32 @@ export function hueForCategorySlug(slug: string): number {
     : slug
   return TOP_LEVEL_HUES[topSlug] ?? 262
 }
+
+/** Children of a top-level category, in seed order. */
+export const CHILDREN_BY_PARENT_SLUG: Map<string, Category[]> = (() => {
+  const out = new Map<string, Category[]>()
+  for (const c of CATEGORIES) {
+    if (!c.parentId) continue
+    const parent = CATEGORIES.find((p) => p.id === c.parentId)
+    if (!parent) continue
+    const list = out.get(parent.slug)
+    if (list) list.push(c)
+    else out.set(parent.slug, [c])
+  }
+  return out
+})()
+
+/**
+ * Every slug a category browse should match.
+ *
+ * Products are tagged with *leaf* slugs ('milk-curd'), but the category strip
+ * links to *top-level* slugs ('dairy'), so a naive `categorySlug === slug`
+ * filter returned an empty grid for every top-level tap. Expanding to the
+ * whole subtree is what makes "Dairy" show all 20-odd dairy products.
+ */
+export function categorySlugsFor(slug: string): string[] {
+  const children = CHILDREN_BY_PARENT_SLUG.get(slug)
+  return children ? [slug, ...children.map((c) => c.slug)] : [slug]
+}
+
+export const TOP_LEVEL_CATEGORIES: Category[] = CATEGORIES.filter((c) => !c.parentId)

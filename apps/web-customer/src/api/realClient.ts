@@ -5,8 +5,9 @@ import type {
   MultiItemSearchRequest, MultiItemSearchResponse, RequestOtpRequest, VerifyOtpRequest,
   VerifyOtpResponse, AuthUser, CompleteProfileRequest, CompleteProfileResponse, Address,
   ShopType, UnitType, Availability, AvailabilitySource, Badge,
-  Order, OrderItem, CreateOrderRequest,
+  Order, OrderItem, CreateOrderRequest, Paged,
 } from '@shopnear/shared'
+import { paginate } from '@shopnear/shared'
 import type { ShopNearApi, ProductDetailResponse } from './client'
 import { mockClient } from './mockClient'
 import { LOCATION_PRESETS } from './fixtures/location'
@@ -293,7 +294,11 @@ const catalogueAndSearchClient: Pick<
     const res = await apiFetch<{ shops: RawShopRow[] }>(
       `/api/shops/nearby?${qs({ lat: req.location.lat, lng: req.location.lng, radius: req.radiusMeters, type: req.type })}`,
     )
-    return res.shops.map(toShopSummary)
+    // `GET /api/shops/nearby` has no paging parameters, so the page is cut
+    // here rather than server-side. The screens are unaffected — they only
+    // ever see the `Paged` envelope — and when the endpoint does learn to
+    // page, only this function changes.
+    return paginate(res.shops.map(toShopSummary), req)
   },
 
   async getShop(shopId: string, location: GeoPoint): Promise<ShopDetail> {
@@ -311,14 +316,15 @@ const catalogueAndSearchClient: Pick<
     }
   },
 
-  async getShopInventory(req: GetShopInventoryRequest): Promise<InventoryEntry[]> {
+  async getShopInventory(req: GetShopInventoryRequest): Promise<Paged<InventoryEntry>> {
     const items = await fetchAllInventory(req.shopId, req.query)
     let entries: InventoryEntry[] = items.map((item) => ({ product: toProduct(item.product), offer: toOffer(item) }))
     // categorySlug is never populated by the real API (no Category join) —
     // this filter is a no-op in practice since ShopPage only offers the
     // category chips when every product actually carries a slug.
     if (req.categorySlug) entries = entries.filter((e) => e.product.categorySlug === req.categorySlug)
-    return entries.sort((a, b) => a.product.name.localeCompare(b.product.name))
+    entries.sort((a, b) => a.product.name.localeCompare(b.product.name))
+    return paginate(entries, req)
   },
 
   async searchProducts(req: SearchProductsRequest): Promise<ProductSearchGroup[]> {
@@ -547,8 +553,11 @@ async function enrichOrder(row: ApiOrder, location: GeoPoint | null): Promise<Or
     const detail = await catalogueAndSearchClient.getShop(row.shopId, anchor)
     shop = detail
     try {
-      const inv = await catalogueAndSearchClient.getShopInventory({ shopId: row.shopId })
-      imagesByProductId = new Map(inv.map((e) => [e.product.id, e.product.imageUrl]))
+      // Not a browsing call: this needs an image for every line on the order,
+      // so it reads the raw inventory rather than the paged browsing API —
+      // whose page cap would silently drop lines from a 300-item kirana.
+      const inv = await fetchAllInventory(row.shopId)
+      imagesByProductId = new Map(inv.map((item) => [item.product.id, item.product.imageUrl ?? null]))
     } catch {
       // Images are decoration; an order with plain tiles is still correct.
     }

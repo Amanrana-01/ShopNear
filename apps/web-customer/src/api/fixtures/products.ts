@@ -1,6 +1,9 @@
 import type { Product, UnitType } from '@shopnear/shared'
 import { slugToId, placeholderSvgDataUri } from './helpers'
 import { hueForCategorySlug } from './categories'
+import { EXTRA_PRODUCT_SEED } from './products-extra'
+import { AISLE_PRODUCT_SEED } from './products-aisles'
+import { DEPTH_PRODUCT_SEED } from './products-depth'
 
 /** Names, brands, MRPs and searchKeywords below are transcribed from the
  * real seed at apps/api/prisma/seed/data/products.ts (read-only reference —
@@ -8,13 +11,13 @@ import { hueForCategorySlug } from './categories'
  * genuine ~342-product dataset. A handful of items per category that weren't
  * sampled from the real file are written in the same authentic style to
  * round out the assortment. */
-interface ProductSeed {
+export interface ProductSeed {
   name: string; nameGu: string; brand?: string; categorySlug: string
   unitType: UnitType; defaultUnitLabel: string; mrp?: number
   searchKeywords: string[]; isLooseGood?: boolean
 }
 
-const P: ProductSeed[] = [
+const BASE_SEED: ProductSeed[] = [
   // Flours & Grains
   { name: 'Aashirvaad Superior MP Atta 5 kg', nameGu: 'આશીર્વાદ લોટ ૫ કિલો', brand: 'Aashirvaad', categorySlug: 'flours-grains', unitType: 'WEIGHT', defaultUnitLabel: '5 kg', mrp: 285, searchKeywords: ['atta', 'aata', 'ata', 'lot', 'ghau no lot', 'wheat flour', 'aashirvaad'] },
   { name: 'Fortune Chakki Fresh Atta 5 kg', nameGu: 'ફોર્ચ્યુન લોટ ૫ કિલો', brand: 'Fortune', categorySlug: 'flours-grains', unitType: 'WEIGHT', defaultUnitLabel: '5 kg', mrp: 265, searchKeywords: ['atta', 'aata', 'lot', 'ghau no lot', 'fortune atta'] },
@@ -232,6 +235,72 @@ const P: ProductSeed[] = [
   { name: 'Jalebi (loose)', nameGu: 'જલેબી', categorySlug: 'sweets-mithai', unitType: 'WEIGHT', defaultUnitLabel: 'per kg', searchKeywords: ['jalebi', 'mithai'], isLooseGood: true },
 ]
 
+/**
+ * The transcribed seed plus both demo-density top-ups, deduplicated by name.
+ *
+ * Product ids are derived from the name (`slugToId`), so two seeds naming the
+ * same SKU would mint the same id twice and every id-keyed map downstream
+ * would silently keep only one of them. Four seed files written at different
+ * times WILL overlap — 'Groundnut Oil (loose)' is in three of them — so the
+ * dedupe is load-bearing, not defensive. First writer wins, which keeps the
+ * API-transcribed `BASE_SEED` authoritative over the demo filler.
+ */
+const P: ProductSeed[] = (() => {
+  const seen = new Set<string>()
+  const out: ProductSeed[] = []
+  for (const p of [...BASE_SEED, ...EXTRA_PRODUCT_SEED, ...AISLE_PRODUCT_SEED, ...DEPTH_PRODUCT_SEED]) {
+    const id = slugToId('prod', p.name)
+    if (seen.has(id)) continue
+    seen.add(id)
+    out.push(p)
+  }
+  return out
+})()
+
+/** Shelf copy, derived rather than hand-written for 490-odd SKUs. It says the
+ * three things a product page has to answer — what it is, how it is sold, and
+ * whether it is branded or weighed out of a sack — in the register a kirana
+ * would use. */
+const CATEGORY_NOUN: Record<string, string> = {
+  'flours-grains': 'flour', 'pulses-dals': 'dal', rice: 'rice', 'edible-oils': 'cooking oil',
+  'spices-masala': 'masala', 'sugar-jaggery': 'sweetener', 'milk-curd': 'dairy',
+  'butter-ghee': 'ghee and spreads', 'cheese-paneer': 'cheese and paneer',
+  'bread-buns': 'bakery bread', 'biscuits-cookies': 'biscuits', 'cakes-rusks': 'cakes and rusks',
+  'bath-soap': 'bath soap', 'shampoo-haircare': 'hair care', 'oral-care': 'oral care',
+  'cleaning-supplies': 'cleaning supplies', laundry: 'laundry', 'pooja-items': 'pooja samagri',
+  'tea-coffee': 'tea and coffee', 'soft-drinks': 'cold drinks', 'juices-health-drinks': 'juices and health drinks',
+  'namkeen-chips': 'namkeen', 'chocolates-candy': 'chocolate and candy', 'instant-noodles': 'instant noodles',
+  'notebooks-paper': 'paper and notebooks', 'pens-pencils': 'pens and pencils', 'art-craft': 'art and craft',
+  tools: 'hand tools', electrical: 'electrical fittings', paints: 'paint',
+  'otc-medicines': 'OTC medicine', 'first-aid': 'first aid', 'baby-care': 'baby care',
+  'fresh-vegetables': 'fresh vegetables', 'fresh-fruits': 'fresh fruit',
+  'namkeen-farsan': 'farsan', 'sweets-mithai': 'mithai',
+  'nuts-seeds': 'dry fruit', 'dried-fruits': 'dried fruit',
+  'cereals-flakes': 'breakfast cereal', 'jams-spreads': 'jams and spreads',
+  'ice-cream': 'ice cream', 'frozen-snacks': 'frozen snacks',
+  'kitchen-tools': 'kitchenware', 'storage-containers': 'storage',
+}
+
+function describe(p: ProductSeed): string {
+  const noun = CATEGORY_NOUN[p.categorySlug] ?? 'everyday essentials'
+  if (p.isLooseGood) {
+    return `Loose ${noun}, weighed out and packed to order — sold ${p.defaultUnitLabel}.`
+  }
+  const maker = p.brand ? `${p.brand} ` : ''
+  return `${maker}${noun}, ${p.defaultUnitLabel} pack. Priced per shop, so it is worth comparing.`
+}
+
+/** Merchandising labels only — matching is `searchKeywords`' job, never these. */
+function tagsFor(p: ProductSeed): string[] {
+  const tags: string[] = [p.categorySlug]
+  if (p.isLooseGood) tags.push('loose')
+  else tags.push('packaged')
+  if (p.brand) tags.push('branded')
+  if (p.mrp && p.mrp >= 400) tags.push('value-pack')
+  else if (p.mrp && p.mrp <= 50) tags.push('under-50')
+  return tags
+}
+
 export const PRODUCTS: Product[] = P.map((p) => {
   const id = slugToId('prod', p.name)
   return {
@@ -246,6 +315,8 @@ export const PRODUCTS: Product[] = P.map((p) => {
     mrp: p.mrp ?? null,
     imageUrl: placeholderSvgDataUri(p.name, hueForCategorySlug(p.categorySlug)),
     isLooseGood: Boolean(p.isLooseGood),
+    description: describe(p),
+    tags: tagsFor(p),
   }
 })
 
@@ -261,6 +332,7 @@ export function basePriceFor(product: Product): number {
     'spices-masala': 320, 'sugar-jaggery': 55, 'milk-curd': 58,
     'fresh-vegetables': 35, 'fresh-fruits': 90, 'namkeen-chips': 320,
     'namkeen-farsan': 260, 'sweets-mithai': 480,
+    'nuts-seeds': 820, 'dried-fruits': 410,
   }
   return looseRates[product.categorySlug ?? ''] ?? 80
 }

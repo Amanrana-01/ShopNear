@@ -7,9 +7,10 @@ import type {
   Dispute, RequestOtpRequest, VerifyOtpRequest, VerifyOtpResponse, AuthUser, Product, GeoPoint,
   CompleteProfileRequest, CompleteProfileResponse, Address,
 } from '@shopnear/shared'
+import { paginate } from '@shopnear/shared'
 import type { ShopNearApi, ProductDetailResponse } from './client'
 import { LOCATION_PRESETS } from './fixtures/location'
-import { CATEGORIES } from './fixtures/categories'
+import { CATEGORIES, categorySlugsFor } from './fixtures/categories'
 import { PRODUCTS, PRODUCT_BY_ID, SEARCH_KEYWORDS_BY_PRODUCT_ID } from './fixtures/products'
 import { SHOPS, SHOP_DETAILS, isOpenNow } from './fixtures/shops'
 import { offersForProduct, offersForShop, offerFor } from './fixtures/inventory'
@@ -184,7 +185,10 @@ export const mockClient: ShopNearApi = {
       const q = req.query.toLowerCase()
       shops = shops.filter((s) => s.name.toLowerCase().includes(q))
     }
-    return shops
+    // Already distance-sorted by shopsWithinRadius, so page 0 is the nearest
+    // twenty and paging walks outwards — which is the only ordering that
+    // makes "load more" mean anything on a nearby-shops list.
+    return paginate(shops, req)
   },
 
   async getShop(shopId: string, location: GeoPoint) {
@@ -201,20 +205,30 @@ export const mockClient: ShopNearApi = {
   async getShopInventory(req: GetShopInventoryRequest) {
     await latency()
     let entries: InventoryEntry[] = offersForShop(req.shopId)
-    if (req.categorySlug) entries = entries.filter((e) => e.product.categorySlug === req.categorySlug)
+    if (req.categorySlug) {
+      const slugs = new Set(categorySlugsFor(req.categorySlug))
+      entries = entries.filter((e) => slugs.has(e.product.categorySlug ?? ''))
+    }
     if (req.query) {
       const q = req.query.toLowerCase()
       entries = entries.filter((e) => matchScore(e.product, q) > 0)
     }
-    return entries.sort((a, b) => a.product.name.localeCompare(b.product.name))
+    entries.sort((a, b) => a.product.name.localeCompare(b.product.name))
+    return paginate(entries, req)
   },
 
   async searchProducts(req: SearchProductsRequest) {
     await latency(320, 280)
+    // A category tap sends the *top-level* slug ('dairy'), but products carry
+    // leaf slugs ('milk-curd'), so match against the whole subtree — otherwise
+    // every top-level category browse comes back empty.
     const matches = req.query
       ? findMatchingProducts(req.query)
       : req.categorySlug
-        ? PRODUCTS.filter((p) => p.categorySlug === req.categorySlug)
+        ? (() => {
+            const slugs = new Set(categorySlugsFor(req.categorySlug))
+            return PRODUCTS.filter((p) => slugs.has(p.categorySlug ?? ''))
+          })()
         : []
     const nearbyShopIds = new Set(shopsWithinRadius(req.location, req.radiusMeters).map((s) => s.id))
 

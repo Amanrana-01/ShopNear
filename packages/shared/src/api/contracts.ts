@@ -64,8 +64,13 @@ export const GeoPointSchema = z.object({
 })
 export type GeoPoint = z.infer<typeof GeoPointSchema>
 
+/** Fixed rungs rather than a free number: the UI is a picker, and pinning the
+ * set keeps server-side caching and analytics bucketing meaningful. The upper
+ * two rungs cover "the rest of the city" for anyone whose actual location is
+ * outside the dense inner radius. */
 export const RadiusMetersSchema = z.union([
-  z.literal(250), z.literal(500), z.literal(1000), z.literal(3000),
+  z.literal(250), z.literal(500), z.literal(1000),
+  z.literal(3000), z.literal(10000), z.literal(25000),
 ])
 export type RadiusMeters = z.infer<typeof RadiusMetersSchema>
 
@@ -166,6 +171,13 @@ export const ShopDetailSchema = ShopSummarySchema.extend({
   inventorySummary: z.object({
     totalItems: z.number(),
     byAvailability: z.record(z.string(), z.number()),
+    /** Lines per category slug — the facet behind a shop page's category
+     * chips. Optional, and absent from the real API for the same reason
+     * `Product.categorySlug` is: there is no Category join. It lives on the
+     * summary rather than being counted from the inventory list because that
+     * list is paged, and a chip that counts only the first page is worse
+     * than no chip. */
+    byCategory: z.record(z.string(), z.number()).optional(),
   }),
 })
 export type ShopDetail = z.infer<typeof ShopDetailSchema>
@@ -198,6 +210,13 @@ export const ProductSchema = z.object({
   mrp: z.number().nullable().optional(),
   imageUrl: z.string().nullable(),
   isLooseGood: z.boolean().optional(),
+  /** One-line shelf copy. Absent from the real API today (no such column) —
+   * present in the mock so product detail reads like a stocked catalogue
+   * rather than a name and a price. */
+  description: z.string().nullable().optional(),
+  /** Merchandising labels ('staple', 'daily', 'value-pack'). Never used for
+   * matching — `searchKeywords` does that — only for display and grouping. */
+  tags: z.array(z.string()).optional(),
 })
 export type Product = z.infer<typeof ProductSchema>
 
@@ -219,6 +238,14 @@ export const OfferSchema = z.object({
   availabilityUpdatedAt: z.string().nullable().optional(),
   availabilitySource: AvailabilitySourceSchema.optional(),
   badge: BadgeSchema.optional(),
+  /** How far below the product's MRP this shop is pricing, 0-100. Optional
+   * because the real API returns only `price` and leaves the comparison to
+   * the client; where it IS supplied it is authoritative, so the "% off MRP"
+   * badge stops being a number the UI reverse-engineers from two others.
+   *
+   * Deliberately no stock quantity here — see the design note at the top of
+   * this file. Quantity stays internal to whatever generates the offer. */
+  discountPct: z.number().nullable().optional(),
 })
 export type Offer = z.infer<typeof OfferSchema>
 
@@ -252,7 +279,45 @@ export type SearchSort = z.infer<typeof SearchSortSchema>
 // Requests
 // ---------------------------------------------------------------------------
 
-export const GetShopsNearbyRequestSchema = z.object({
+// ---------------------------------------------------------------------------
+// Pagination
+//
+// Long lists (the nearby-shop list, a shop's catalogue) are paged so a dense
+// neighbourhood stays browsable. Paging is a *service-layer* concern: the
+// client slices, the screen only ever asks for the next page. `total` is the
+// count after filtering, so a header can say "126 shops in range" while
+// holding twenty of them.
+// ---------------------------------------------------------------------------
+
+export const PAGE_SIZE = 20
+
+export const PageRequestSchema = z.object({
+  /** Zero-based. Omit for page 0. */
+  page: z.number().int().min(0).optional(),
+  pageSize: z.number().int().min(1).max(100).optional(),
+})
+export type PageRequest = z.infer<typeof PageRequestSchema>
+
+export interface Paged<T> {
+  items: T[]
+  page: number
+  pageSize: number
+  /** Total matching rows across all pages, after filtering. */
+  total: number
+  hasMore: boolean
+}
+
+/** Slices an already-filtered, already-sorted list into a `Paged` envelope.
+ * Shared by both clients so "what does page 2 mean" has exactly one answer. */
+export function paginate<T>(all: T[], req: PageRequest = {}): Paged<T> {
+  const pageSize = req.pageSize ?? PAGE_SIZE
+  const page = Math.max(0, req.page ?? 0)
+  const start = page * pageSize
+  const items = all.slice(start, start + pageSize)
+  return { items, page, pageSize, total: all.length, hasMore: start + items.length < all.length }
+}
+
+export const GetShopsNearbyRequestSchema = PageRequestSchema.extend({
   location: GeoPointSchema,
   radiusMeters: RadiusMetersSchema,
   type: ShopTypeSchema.optional(),
@@ -285,7 +350,7 @@ export const GetProductDetailRequestSchema = z.object({
 })
 export type GetProductDetailRequest = z.infer<typeof GetProductDetailRequestSchema>
 
-export const GetShopInventoryRequestSchema = z.object({
+export const GetShopInventoryRequestSchema = PageRequestSchema.extend({
   shopId: z.string(),
   categorySlug: z.string().optional(),
   query: z.string().optional(),
