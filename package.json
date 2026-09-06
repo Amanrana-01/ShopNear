@@ -17,6 +17,8 @@
     "dev:api": "npm --workspace @shopnear/api run dev",
     "dev:web-customer": "npm --workspace @shopnear/web-customer run dev",
     "dev:web-merchant": "npm --workspace @shopnear/web-merchant run dev",
+    "dev:web-admin": "npm --workspace @shopnear/web-admin run dev",
+    "dev:all": "node scripts/dev-all.mjs",
     "dev": "npm run dev:api"
   },
   "devDependencies": {
