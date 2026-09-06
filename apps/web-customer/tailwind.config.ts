@@ -1,5 +1,19 @@
 import type { Config } from 'tailwindcss'
 
+/**
+ * ShopNear design tokens.
+ *
+ * Brand purple stays the primary (it is the existing product identity, and it
+ * is also what the quick-commerce category has converged on). Around it sit
+ * two functional accents that carry meaning rather than decoration:
+ *
+ *   success  — "in stock", "confirmed", delivery ETA. Never decorative.
+ *   accent   — urgency only: discounts, low stock, expiring reservations.
+ *
+ * Density is deliberately high (Zepto/Blinkit-class product grids), so the
+ * radius and shadow scales are tight and the type scale bottoms out at 11px
+ * for metadata only — never body copy.
+ */
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
@@ -18,54 +32,84 @@ export default {
           800: '#3D1270',
           900: '#2B0C52',
         },
-        ink: '#3D1270',
+        ink: {
+          DEFAULT: '#3D1270',
+          muted: '#6B5B84',
+          faint: '#9C8FB0',
+        },
+        canvas: {
+          DEFAULT: '#F6F4FB',
+          raised: '#FFFFFF',
+          sunken: '#EDE8F7',
+        },
+        success: {
+          DEFAULT: '#0D9488',
+          50: '#EFFFFC',
+          100: '#CCFBF1',
+          600: '#0D9488',
+          700: '#0F766E',
+        },
+        accent: {
+          DEFAULT: '#EA580C',
+          50: '#FFF4ED',
+          100: '#FFE6D5',
+          600: '#EA580C',
+          700: '#C2410C',
+        },
         teal: {
           DEFAULT: '#2DD4BF',
           50: '#EFFFFC',
           100: '#CCFBF1',
+          500: '#14B8A6',
           600: '#0D9488',
         },
         amber: {
           50: '#FFFBEB',
           100: '#FEF3C7',
+          500: '#F59E0B',
           600: '#B45309',
           700: '#92400E',
         },
         rose: {
           50: '#FFF1F2',
           100: '#FFE4E6',
+          500: '#F43F5E',
           600: '#BE123C',
           700: '#9F1239',
         },
       },
       fontFamily: {
         sans: [
-          'Inter',
-          'Poppins',
-          'ui-sans-serif',
-          'system-ui',
-          '-apple-system',
-          'Segoe UI',
-          'Roboto',
-          'sans-serif',
+          'Inter', 'Poppins', 'ui-sans-serif', 'system-ui', '-apple-system',
+          'Segoe UI', 'Roboto', 'sans-serif',
         ],
         display: [
-          'Poppins',
-          'Inter',
-          'ui-sans-serif',
-          'system-ui',
-          '-apple-system',
-          'Segoe UI',
-          'sans-serif',
+          'Poppins', 'Inter', 'ui-sans-serif', 'system-ui', '-apple-system',
+          'Segoe UI', 'sans-serif',
         ],
+      },
+      fontSize: {
+        '2xs': ['0.6875rem', { lineHeight: '0.875rem' }],
       },
       borderRadius: {
         card: '16px',
+        tile: '14px',
+        pill: '999px',
       },
       boxShadow: {
         soft: '0 2px 8px 0 rgb(61 18 112 / 0.06), 0 1px 2px 0 rgb(61 18 112 / 0.04)',
         pop: '0 8px 24px -4px rgb(61 18 112 / 0.18)',
         nav: '0 -2px 16px 0 rgb(61 18 112 / 0.08)',
+        tile: '0 1px 2px 0 rgb(61 18 112 / 0.05), 0 0 0 1px rgb(61 18 112 / 0.04)',
+        lift: '0 12px 32px -8px rgb(61 18 112 / 0.22)',
+        header: '0 1px 0 0 rgb(61 18 112 / 0.06)',
+      },
+      spacing: {
+        header: '3.5rem',
+        'nav-h': '4rem',
+      },
+      maxWidth: {
+        app: '80rem',
       },
       keyframes: {
         'fade-in-up': {
@@ -84,10 +128,14 @@ export default {
           '0%': { backgroundPosition: '-400px 0' },
           '100%': { backgroundPosition: '400px 0' },
         },
-        'press': {
+        press: {
           '0%': { transform: 'scale(1)' },
           '50%': { transform: 'scale(0.94)' },
           '100%': { transform: 'scale(1)' },
+        },
+        'marquee-y': {
+          '0%, 45%': { transform: 'translateY(0)' },
+          '55%, 100%': { transform: 'translateY(-100%)' },
         },
       },
       animation: {

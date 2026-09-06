@@ -24,15 +24,16 @@ export interface ShopNearApi {
 
   // Catalogue browsing
   getCategories(): Promise<Category[]>
-  /** Paged: a dense neighbourhood puts 126 shops inside the default radius,
+  /** Paged: a dense neighbourhood puts 138 shops inside the default radius,
    * which is not one screen. Filtering, sorting and slicing all happen behind
    * this call — the screen asks for a page number and nothing else. */
   getShopsNearby(req: GetShopsNearbyRequest): Promise<Paged<ShopSummary>>
   /** `location` is only used to compute `distanceMeters` client-side — the
    * real `GET /api/shops/:id` has no location anchor of its own. */
   getShop(shopId: string, location: GeoPoint): Promise<ShopDetail>
-  /** Paged for the same reason: a kirana's catalogue runs to 300 lines. */
-  getShopInventory(req: GetShopInventoryRequest): Promise<Paged<InventoryEntry>>
+  /** The only call that returns ShopItems, and it is always scoped to one
+   * shop. Paged for the same reason: a kirana's catalogue runs to 300 lines. */
+  getShopCatalogue(req: GetShopInventoryRequest): Promise<Paged<InventoryEntry>>
 
   // Search
   searchProducts(req: SearchProductsRequest): Promise<ProductSearchGroup[]>

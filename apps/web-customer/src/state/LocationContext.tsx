@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { GeoPoint, RadiusMeters } from '@shopnear/shared'
+import { resolveDemoLocation } from '@/lib/demoLocation'
 
 export interface ActiveLocation extends GeoPoint {
   label: string
@@ -23,7 +24,9 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const [location, setLocationState] = useState<ActiveLocation | null>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY)
-      return raw ? (JSON.parse(raw) as ActiveLocation) : null
+      // Resolved on the way out of storage too: a device position saved on a
+      // previous visit is just as far from the fixture as a fresh one.
+      return raw ? resolveDemoLocation(JSON.parse(raw) as ActiveLocation) : null
     } catch {
       return null
     }
@@ -44,7 +47,10 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(RADIUS_KEY, JSON.stringify(radiusMeters))
   }, [radiusMeters])
 
-  const setLocation = useCallback((loc: ActiveLocation) => setLocationState(loc), [])
+  const setLocation = useCallback(
+    (loc: ActiveLocation) => setLocationState(resolveDemoLocation(loc)),
+    [],
+  )
   const clearLocation = useCallback(() => {
     setLocationState(null)
     localStorage.removeItem(STORAGE_KEY)

@@ -3,6 +3,7 @@ import { AppShell } from '@/components/layout/AppShell'
 import { RequireLocation } from '@/components/RequireLocation'
 import LocationGate from '@/pages/LocationGate'
 import Login from '@/pages/Login'
+import Story from '@/pages/Story'
 import Home from '@/pages/Home'
 import SearchResults from '@/pages/SearchResults'
 import MultiItemSearch from '@/pages/MultiItemSearch'
@@ -20,6 +21,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<LocationGate />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/story" element={<Story />} />
 
       <Route element={<RequireLocation />}>
         <Route element={<AppShell />}>

@@ -274,7 +274,7 @@ async function buildCoverage(
 
 const catalogueAndSearchClient: Pick<
   ShopNearApi,
-  'getLocationPresets' | 'getCategories' | 'getShopsNearby' | 'getShop' | 'getShopInventory' |
+  'getLocationPresets' | 'getCategories' | 'getShopsNearby' | 'getShop' | 'getShopCatalogue' |
   'searchProducts' | 'getProductDetail' | 'multiItemSearch' |
   'requestOtp' | 'verifyOtp' | 'completeProfile' | 'getCurrentUser' | 'logout'
 > = {
@@ -316,7 +316,7 @@ const catalogueAndSearchClient: Pick<
     }
   },
 
-  async getShopInventory(req: GetShopInventoryRequest): Promise<Paged<InventoryEntry>> {
+  async getShopCatalogue(req: GetShopInventoryRequest): Promise<Paged<InventoryEntry>> {
     const items = await fetchAllInventory(req.shopId, req.query)
     let entries: InventoryEntry[] = items.map((item) => ({ product: toProduct(item.product), offer: toOffer(item) }))
     // categorySlug is never populated by the real API (no Category join) —

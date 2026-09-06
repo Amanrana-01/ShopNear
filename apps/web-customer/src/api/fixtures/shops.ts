@@ -1,5 +1,7 @@
 import type { ShopSummary, ShopDetail, OpeningHours, ShopType } from '@shopnear/shared'
-import { ANCHOR, offsetPoint, slugToId, seededRandomFor, pick } from './helpers'
+import { ANCHOR, offsetPoint, haversineMetres, slugToId, seededRandomFor, pick } from './helpers'
+import type { DemoOrigin } from './origins'
+import { DEMO_ORIGINS, PRIMARY_ORIGIN } from './origins'
 
 /** Transcribed from apps/api/prisma/seed/data/shops.ts (read-only reference)
  * — same 14 shops, names, types, and distance/bearing from the Navrangpura
@@ -8,6 +10,9 @@ interface ShopSeed {
   name: string; nameGu: string; type: ShopType; distanceMetres: number
   bearing: number; status: 'PENDING' | 'ACTIVE' | 'SUSPENDED'; acceptsDelivery: boolean
   address: string; description: string
+  /** Which demo origin `distanceMetres`/`bearing` are measured from. The 14
+   * transcribed seed shops are all around Home, so it defaults there. */
+  originId?: DemoOrigin['id']
 }
 
 const SHOP_SEED: ShopSeed[] = [
@@ -32,12 +37,12 @@ const SHOP_SEED: ShopSeed[] = [
 //
 // The 14 shops above are a thin slice of one street, which meant a filter
 // like "Bakery" or "Chemist" returned a single card. This block generates the
-// rest of the neighbourhood: 25 shops of every type, placed so that each type
-// clears ten results at 500 m and above, and so no distance band the radius
-// picker offers is ever empty for any type.
+// rest of the neighbourhood: 33 shops of every type, placed so that no rung of
+// the radius picker is ever empty for any type — from any of the three demo
+// origins, not just from Home. See `origins.ts`.
 //
 // Everything here derives from a PRNG seeded on the shop type, so the same
-// 225 shops — same names, same coordinates, same ratings — come back on every
+// 297 shops — same names, same coordinates, same ratings — come back on every
 // reload. Nothing in this file calls Math.random().
 // ---------------------------------------------------------------------------
 
@@ -75,7 +80,31 @@ const DISTANCE_BANDS: DistanceBand[] = [
   { min: 10000, max: 25000, count: 2 },
 ]
 
-export const SHOPS_PER_TYPE = DISTANCE_BANDS.reduce((n, b) => n + b.count, 0) // 25
+/**
+ * Shops of each type placed around each *satellite* origin (Office, Hostel).
+ *
+ * The bands above are measured from Home, so browsing from Home fills every
+ * rung of the radius picker. Office and Hostel sit 2 km and 900 m away, where
+ * that cluster's inner rungs are empty - standing at the Office and asking for
+ * "chemists within 250 m" returned nothing, which is the bug the radius picker
+ * was reported for. Each satellite therefore gets its own inner neighbourhood.
+ * Nothing is generated beyond 1 km: from either satellite, the 3 km rung and
+ * up already reach the Home cluster.
+ */
+const SATELLITE_BANDS: DistanceBand[] = [
+  { min: 0, max: 250, count: 2, placeFrom: 90 },
+  { min: 250, max: 500, count: 1 },
+  { min: 500, max: 1000, count: 1 },
+]
+
+const SATELLITE_ORIGINS = DEMO_ORIGINS.filter((o) => !o.isPrimary)
+
+const PER_TYPE_AROUND_HOME = DISTANCE_BANDS.reduce((n, b) => n + b.count, 0) // 25
+const PER_TYPE_PER_SATELLITE = SATELLITE_BANDS.reduce((n, b) => n + b.count, 0) // 4
+
+/** 33: twenty-five around Home, four around each of the two satellites. */
+export const SHOPS_PER_TYPE =
+  PER_TYPE_AROUND_HOME + PER_TYPE_PER_SATELLITE * SATELLITE_ORIGINS.length
 
 /** Family and deity names that front half the shop boards in Ahmedabad.
  * Paired with a type-appropriate suffix below to make a name that reads like
@@ -218,49 +247,62 @@ function generateShopsFor(type: ShopType, existing: ShopSeed[]): ShopSeed[] {
   const out: ShopSeed[] = []
 
   // Bearings are dealt from one evenly-spaced ring per type, rotated per type,
-  // so a type's shops surround the anchor instead of clustering on one side —
+  // so a type's shops surround the origin instead of clustering on one side -
   // which is what stops "nearest first" always naming the same street.
   const ringOffset = SHOP_TYPE_LIST.indexOf(type) * (360 / SHOP_TYPE_LIST.length / 2)
   let placed = 0
 
-  for (const band of DISTANCE_BANDS) {
-    // Shops of this type that the API seed already placed in this band count
-    // towards the band's target, so every type totals exactly SHOPS_PER_TYPE.
-    const alreadyHere = existing.filter(
-      (s) => s.distanceMetres > band.min && s.distanceMetres <= band.max,
-    ).length
-    const needed = Math.max(0, band.count - alreadyHere)
-
-    for (let i = 0; i < needed; i++) {
-      let prefix = NAME_PREFIXES[Math.floor(rng() * NAME_PREFIXES.length)]
-      let suffix = suffixes[Math.floor(rng() * suffixes.length)]
-      let name = `${prefix.en} ${suffix.en}`
-      // Deterministic linear probe rather than a re-roll on collision, so the
-      // loop is bounded and the output stays stable across reloads.
-      let probe = 0
-      while (taken.has(name) && probe < NAME_PREFIXES.length * suffixes.length) {
-        probe++
-        prefix = NAME_PREFIXES[(probe * 7 + i) % NAME_PREFIXES.length]
-        suffix = suffixes[(probe + i) % suffixes.length]
-        name = `${prefix.en} ${suffix.en}`
-      }
-      taken.add(name)
-
-      out.push({
-        name,
-        nameGu: `${prefix.gu} ${suffix.gu}`,
-        type,
-        distanceMetres: distanceInBand(band, i, rng),
-        bearing: (ringOffset + (placed * 360) / SHOPS_PER_TYPE + rng() * 8) % 360,
-        status: 'ACTIVE',
-        // Roughly seven in ten shops deliver; the rest are collect-only, which
-        // is what makes the delivery badge worth reading at all.
-        acceptsDelivery: rng() < 0.7,
-        address: `${3 + Math.floor(rng() * 180)}, ${copy.street}`,
-        description: copy.descriptions[Math.floor(rng() * copy.descriptions.length)],
-      })
-      placed++
+  /** A board this type has not used yet. Deterministic linear probe rather
+   * than a re-roll on collision, so the loop is bounded and the output stays
+   * stable across reloads. */
+  function mintName(i: number) {
+    let prefix = NAME_PREFIXES[Math.floor(rng() * NAME_PREFIXES.length)]
+    let suffix = suffixes[Math.floor(rng() * suffixes.length)]
+    let probe = 0
+    while (taken.has(`${prefix.en} ${suffix.en}`) && probe < NAME_PREFIXES.length * suffixes.length) {
+      probe++
+      prefix = NAME_PREFIXES[(probe * 7 + i) % NAME_PREFIXES.length]
+      suffix = suffixes[(probe + i) % suffixes.length]
     }
+    taken.add(`${prefix.en} ${suffix.en}`)
+    return { prefix, suffix }
+  }
+
+  function placeBands(origin: DemoOrigin, bands: DistanceBand[]) {
+    for (const band of bands) {
+      // Shops of this type that the API seed already placed in this band count
+      // towards the band's target, so every type totals exactly
+      // PER_TYPE_AROUND_HOME around Home. Only Home has transcribed shops.
+      const alreadyHere = origin.isPrimary
+        ? existing.filter((s) => s.distanceMetres > band.min && s.distanceMetres <= band.max).length
+        : 0
+      const needed = Math.max(0, band.count - alreadyHere)
+
+      for (let i = 0; i < needed; i++) {
+        const { prefix, suffix } = mintName(i)
+        out.push({
+          name: `${prefix.en} ${suffix.en}`,
+          nameGu: `${prefix.gu} ${suffix.gu}`,
+          type,
+          originId: origin.id,
+          distanceMetres: distanceInBand(band, i, rng),
+          bearing: (ringOffset + (placed * 360) / SHOPS_PER_TYPE + rng() * 8) % 360,
+          status: 'ACTIVE',
+          // Roughly seven in ten shops deliver; the rest are collect-only, which
+          // is what makes the delivery badge worth reading at all.
+          acceptsDelivery: rng() < 0.7,
+          // Around Home the street is the one that trade actually occupies;
+          // a satellite's shops carry that neighbourhood's road instead.
+          address: `${3 + Math.floor(rng() * 180)}, ${origin.isPrimary ? copy.street : origin.street}`,
+          description: copy.descriptions[Math.floor(rng() * copy.descriptions.length)],
+        })
+        placed++
+      }
+    }
+  }
+
+  for (const origin of DEMO_ORIGINS) {
+    placeBands(origin, origin.isPrimary ? DISTANCE_BANDS : SATELLITE_BANDS)
   }
   return out
 }
@@ -268,6 +310,8 @@ function generateShopsFor(type: ShopType, existing: ShopSeed[]): ShopSeed[] {
 const GENERATED_SHOP_SEED: ShopSeed[] = SHOP_TYPE_LIST.flatMap((type) =>
   generateShopsFor(type, SHOP_SEED.filter((s) => s.type === type && s.status === 'ACTIVE')),
 )
+
+const ORIGIN_BY_ID = new Map(DEMO_ORIGINS.map((o) => [o.id, o]))
 
 const ALL_SHOP_SEED: ShopSeed[] = [...SHOP_SEED, ...GENERATED_SHOP_SEED]
 
@@ -319,7 +363,8 @@ export const SHOPS_INTERNAL = ALL_SHOP_SEED
   .filter((s) => s.status === 'ACTIVE')
   .map((s) => {
     const id = slugToId('shop', s.name)
-    const at = offsetPoint(ANCHOR.lat, ANCHOR.lng, s.distanceMetres, s.bearing)
+    const origin = ORIGIN_BY_ID.get(s.originId ?? PRIMARY_ORIGIN.id) ?? PRIMARY_ORIGIN
+    const at = offsetPoint(origin.lat, origin.lng, s.distanceMetres, s.bearing)
     const rng = seededRandomFor(id)
     const hours: OpeningHours = {
       ...hoursFor(s.type),
@@ -327,7 +372,10 @@ export const SHOPS_INTERNAL = ALL_SHOP_SEED
     }
     const summary: ShopSummary = {
       id, name: s.name, nameGu: s.nameGu, type: s.type,
-      distanceMeters: s.distanceMetres, address: s.address, lat: at.lat, lng: at.lng,
+      // Measured from the anchor for every shop, satellites included - the
+      // live value is recomputed against the customer on every request.
+      distanceMeters: Math.round(haversineMetres(ANCHOR.lat, ANCHOR.lng, at.lat, at.lng)),
+      address: s.address, lat: at.lat, lng: at.lng,
       // 3.4–4.9. Nothing sits below 3.4: a shop that bad closes, and a scale
       // whose bottom half is never used reads as decoration.
       avgRating: Number((3.4 + rng() * 1.5).toFixed(1)),

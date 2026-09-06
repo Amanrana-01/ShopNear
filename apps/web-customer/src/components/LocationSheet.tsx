@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Sheet } from '@/components/ui/Sheet'
 import { Button } from '@/components/ui/Button'
-import { IconMapPin, IconLoader } from '@/components/ui/Icon'
+import { Loader2, MapPin } from 'lucide-react'
 import { useLocation } from '@/state/LocationContext'
 import { api } from '@/api'
 import { cn } from '@/lib/utils'
@@ -49,17 +49,17 @@ export function LocationSheet({ open, onClose }: { open: boolean; onClose: () =>
         )}
       >
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-brand-600">
-          {geoState === 'loading' ? <IconLoader size={18} /> : <IconMapPin size={18} />}
+          {geoState === 'loading' ? <Loader2 size={18} className="animate-spin" /> : <MapPin size={18} />}
         </span>
         <span>
           <span className="block text-sm font-semibold text-ink">Use my current location</span>
-          <span className="block text-xs text-ink/50">
+          <span className="block text-xs text-ink-muted">
             {geoState === 'denied' ? "Couldn't get your location — pick one below instead" : 'Fastest way to find shops near you'}
           </span>
         </span>
       </button>
 
-      <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-ink/40">Demo locations</p>
+      <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-ink-faint">Demo locations</p>
       <div className="flex flex-col gap-2">
         {presets?.map((p) => (
           <button
@@ -69,11 +69,11 @@ export function LocationSheet({ open, onClose }: { open: boolean; onClose: () =>
             className="flex items-center gap-3 rounded-2xl border border-black/5 p-4 text-left transition-colors hover:border-brand-200 hover:bg-brand-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
           >
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600">
-              <IconMapPin size={18} />
+              <MapPin size={18} />
             </span>
             <span>
               <span className="block text-sm font-semibold text-ink">{p.label}</span>
-              <span className="block text-xs text-ink/50">{p.sublabel}</span>
+              <span className="block text-xs text-ink-muted">{p.sublabel}</span>
             </span>
           </button>
         )) ?? <Button variant="ghost" disabled loading className="mx-auto" />}

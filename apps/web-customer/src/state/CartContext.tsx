@@ -42,18 +42,62 @@ interface CartContextValue {
 const CartContext = createContext<CartContextValue | null>(null)
 const STORAGE_KEY = 'shopnear.cart.v1'
 
+const EMPTY: CartState = { shop: null, items: [] }
+
+/**
+ * Reads the persisted cart back defensively.
+ *
+ * `JSON.parse` returns `any`, and what comes out of localStorage is not
+ * necessarily what this version of the app put in — a cart saved by an older
+ * build, a half-written value, someone editing devtools. A cast alone would
+ * turn any of those into a crash on first render, and a crash on load loses
+ * the whole session rather than one bad line. Anything that doesn't look like
+ * a cart line is dropped; anything that does is kept.
+ */
+function loadCart(): CartState {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return EMPTY
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== 'object' || parsed === null) return EMPTY
+
+    const { shop, items } = parsed as { shop?: unknown; items?: unknown }
+    if (!Array.isArray(items)) return EMPTY
+
+    const valid = items.filter((i): i is CartItem => {
+      if (typeof i !== 'object' || i === null) return false
+      const line = i as Partial<CartItem>
+      return (
+        typeof line.product === 'object' && line.product !== null &&
+        typeof line.product.id === 'string' &&
+        typeof line.quantity === 'number' && Number.isFinite(line.quantity) && line.quantity > 0 &&
+        typeof line.unitPrice === 'number' && Number.isFinite(line.unitPrice)
+      )
+    })
+    if (valid.length === 0) return EMPTY
+
+    const validShop =
+      typeof shop === 'object' && shop !== null && typeof (shop as { id?: unknown }).id === 'string'
+        ? (shop as ShopSummary)
+        : null
+    // Lines without their shop can't be reserved or priced, so an unreadable
+    // shop empties the cart rather than leaving orphaned lines behind.
+    return validShop ? { shop: validShop, items: valid } : EMPTY
+  } catch {
+    return EMPTY
+  }
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<CartState>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      return raw ? (JSON.parse(raw) as CartState) : { shop: null, items: [] }
-    } catch {
-      return { shop: null, items: [] }
-    }
-  })
+  const [state, setState] = useState<CartState>(loadCart)
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+    } catch {
+      // Private browsing or a full quota. The cart still works for this
+      // session; it just won't survive a reload, which beats crashing.
+    }
   }, [state])
 
   const addItem = useCallback<CartContextValue['addItem']>((shop, product, offer, opts) => {

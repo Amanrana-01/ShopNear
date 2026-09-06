@@ -16,13 +16,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     <div className="w-full">
       <div className="relative flex items-center">
         {leftIcon && (
-          <span className="pointer-events-none absolute left-4 text-ink/40">{leftIcon}</span>
+          <span className="pointer-events-none absolute left-4 text-ink-faint">{leftIcon}</span>
         )}
         <input
           ref={ref}
           id={id}
           className={cn(
-            'w-full rounded-full border border-black/10 bg-white text-[15px] text-ink placeholder:text-ink/40',
+            'w-full rounded-full border border-black/10 bg-white text-[15px] text-ink placeholder:text-ink-faint',
             'py-3 pr-4 transition-shadow duration-150',
             leftIcon ? 'pl-11' : 'pl-4',
             rightSlot && 'pr-11',

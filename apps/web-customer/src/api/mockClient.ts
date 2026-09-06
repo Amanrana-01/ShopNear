@@ -13,7 +13,7 @@ import { LOCATION_PRESETS } from './fixtures/location'
 import { CATEGORIES, categorySlugsFor } from './fixtures/categories'
 import { PRODUCTS, PRODUCT_BY_ID, SEARCH_KEYWORDS_BY_PRODUCT_ID } from './fixtures/products'
 import { SHOPS, SHOP_DETAILS, isOpenNow } from './fixtures/shops'
-import { offersForProduct, offersForShop, offerFor } from './fixtures/inventory'
+import { offersForProduct, getShopCatalogue, offerFor } from './fixtures/inventory'
 import { seedOrders } from './fixtures/orders'
 import { haversineMetres, latency, nextId } from './fixtures/helpers'
 
@@ -202,9 +202,10 @@ export const mockClient: ShopNearApi = {
     } satisfies ShopDetail
   },
 
-  async getShopInventory(req: GetShopInventoryRequest) {
+  async getShopCatalogue(req: GetShopInventoryRequest) {
     await latency()
-    let entries: InventoryEntry[] = offersForShop(req.shopId)
+    // Scoped to req.shopId at the source; every filter below only narrows it.
+    let entries: InventoryEntry[] = getShopCatalogue(req.shopId)
     if (req.categorySlug) {
       const slugs = new Set(categorySlugsFor(req.categorySlug))
       entries = entries.filter((e) => slugs.has(e.product.categorySlug ?? ''))

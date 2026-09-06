@@ -3,7 +3,7 @@ import { SHOP_TYPES, PAGE_SIZE } from '@shopnear/shared'
 import { SHOPS, SHOPS_PER_TYPE } from './shops'
 import { PRODUCTS } from './products'
 import { CATEGORIES, categorySlugsFor } from './categories'
-import { offersForProduct, offersForShop } from './inventory'
+import { offersForProduct, getShopCatalogue } from './inventory'
 import { ANCHOR, haversineMetres } from './helpers'
 
 /**
@@ -176,7 +176,7 @@ describe('requirement 3 — the nearby list is dense under every filter', () => 
 describe('requirement 4 — every shop has a browsable catalogue', () => {
   it('gives every shop at least 40 items', () => {
     const thin = SHOPS
-      .map((s) => ({ name: s.name, n: offersForShop(s.id).length }))
+      .map((s) => ({ name: s.name, n: getShopCatalogue(s.id).length }))
       .filter((s) => s.n < 40)
     expect(thin).toEqual([])
   })
@@ -184,7 +184,7 @@ describe('requirement 4 — every shop has a browsable catalogue', () => {
   it('tops specialist shops up to 40-50 rather than capping the broad ones', () => {
     // A kirana that stocks 40 lines is not a kirana. The floor is a floor.
     for (const s of SHOPS) {
-      const n = offersForShop(s.id).length
+      const n = getShopCatalogue(s.id).length
       if (s.type === 'KIRANA' || s.type === 'GENERAL') expect(n).toBeGreaterThan(50)
       else expect(n).toBeGreaterThanOrEqual(40)
     }
@@ -192,7 +192,7 @@ describe('requirement 4 — every shop has a browsable catalogue', () => {
 
   it('needs more than one page for every shop', () => {
     for (const s of SHOPS) {
-      expect(offersForShop(s.id).length).toBeGreaterThan(PAGE_SIZE)
+      expect(getShopCatalogue(s.id).length).toBeGreaterThan(PAGE_SIZE)
     }
   })
 
@@ -202,7 +202,7 @@ describe('requirement 4 — every shop has a browsable catalogue', () => {
     // rows, and this is what pins that down.
     const mismatches: string[] = []
     for (const shop of shopsWithin(DEFAULT_RADIUS_M).slice(0, 25)) {
-      const catalogue = new Set(offersForShop(shop.id).map((e) => e.product.id))
+      const catalogue = new Set(getShopCatalogue(shop.id).map((e) => e.product.id))
       for (const p of PRODUCTS) {
         const listed = offersForProduct(p.id).some((o) => o.shopId === shop.id)
         if (listed && !catalogue.has(p.id)) mismatches.push(`${shop.name} / ${p.name}`)
@@ -213,7 +213,7 @@ describe('requirement 4 — every shop has a browsable catalogue', () => {
 
   it('exposes a category facet so chips can count past the first page', () => {
     for (const shop of SHOPS.slice(0, 10)) {
-      const entries = offersForShop(shop.id)
+      const entries = getShopCatalogue(shop.id)
       const slugs = new Set(entries.map((e) => e.product.categorySlug))
       expect(slugs.size).toBeGreaterThan(1)
     }

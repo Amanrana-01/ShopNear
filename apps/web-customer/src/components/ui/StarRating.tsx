@@ -1,4 +1,4 @@
-import { IconStar } from './Icon'
+import { Star } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export function StarRating({
@@ -20,7 +20,11 @@ export function StarRating({
             readOnly && 'cursor-default',
           )}
         >
-          <IconStar size={size} filled={value >= n} className={value >= n ? 'text-amber-500' : 'text-black/15'} />
+          <Star
+            size={size}
+            aria-hidden
+            className={cn(value >= n ? 'fill-amber-500 text-amber-500' : 'fill-transparent text-black/20')}
+          />
         </button>
       ))}
     </div>
@@ -29,10 +33,10 @@ export function StarRating({
 
 export function RatingDisplay({ rating, count, size = 12 }: { rating: number; count?: number; size?: number }) {
   return (
-    <span className="inline-flex items-center gap-1 text-xs font-semibold text-ink/80">
-      <IconStar size={size} filled className="text-amber-500" />
+    <span className="inline-flex items-center gap-1 text-xs font-semibold text-ink-muted">
+      <Star size={size} aria-hidden className="fill-amber-500 text-amber-500" />
       {rating.toFixed(1)}
-      {typeof count === 'number' && <span className="font-normal text-ink/40">({count})</span>}
+      {typeof count === 'number' && <span className="font-normal text-ink-faint">({count})</span>}
     </span>
   )
 }

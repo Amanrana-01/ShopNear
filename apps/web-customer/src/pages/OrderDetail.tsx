@@ -10,23 +10,21 @@ import { StarRating } from '@/components/ui/StarRating'
 import { ErrorState } from '@/components/ui/EmptyState'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useToast } from '@/components/ui/Toast'
-import {
-  IconCheckCircle, IconClock, IconPackage, IconTruck, IconStore, IconX,
-} from '@/components/ui/Icon'
+import { CheckCircle2, Clock, Package, Store, Truck, X } from 'lucide-react'
 import { formatCountdown, formatRupees, formatRelativeTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-const RESERVE_STEPS: { status: OrderStatus; label: string; Icon: typeof IconCheckCircle }[] = [
-  { status: 'PLACED', label: 'Placed', Icon: IconClock },
-  { status: 'CONFIRMED', label: 'Confirmed', Icon: IconCheckCircle },
-  { status: 'READY_FOR_PICKUP', label: 'Ready for pickup', Icon: IconPackage },
-  { status: 'COMPLETED', label: 'Completed', Icon: IconStore },
+const RESERVE_STEPS: { status: OrderStatus; label: string; Icon: typeof CheckCircle2 }[] = [
+  { status: 'PLACED', label: 'Placed', Icon: Clock },
+  { status: 'CONFIRMED', label: 'Confirmed', Icon: CheckCircle2 },
+  { status: 'READY_FOR_PICKUP', label: 'Ready for pickup', Icon: Package },
+  { status: 'COMPLETED', label: 'Completed', Icon: Store },
 ]
-const DELIVERY_STEPS: { status: OrderStatus; label: string; Icon: typeof IconCheckCircle }[] = [
-  { status: 'PLACED', label: 'Placed', Icon: IconClock },
-  { status: 'CONFIRMED', label: 'Confirmed', Icon: IconCheckCircle },
-  { status: 'OUT_FOR_DELIVERY', label: 'Out for delivery', Icon: IconTruck },
-  { status: 'COMPLETED', label: 'Delivered', Icon: IconStore },
+const DELIVERY_STEPS: { status: OrderStatus; label: string; Icon: typeof CheckCircle2 }[] = [
+  { status: 'PLACED', label: 'Placed', Icon: Clock },
+  { status: 'CONFIRMED', label: 'Confirmed', Icon: CheckCircle2 },
+  { status: 'OUT_FOR_DELIVERY', label: 'Out for delivery', Icon: Truck },
+  { status: 'COMPLETED', label: 'Delivered', Icon: Store },
 ]
 
 const TERMINAL: OrderStatus[] = ['COMPLETED', 'CANCELLED_BY_CUSTOMER', 'REJECTED_BY_SHOP', 'EXPIRED']
@@ -82,17 +80,17 @@ export default function OrderDetail() {
       <PageHeader title={`Order ${order.orderNumber}`} />
 
       <div className="mx-4 mt-3 flex items-center gap-2 rounded-2xl bg-white p-3.5 shadow-soft">
-        <IconStore size={18} className="shrink-0 text-brand-600" />
+        <Store size={18} className="shrink-0 text-brand-600" />
         <Link to={`/shop/${order.shop.id}`} className="min-w-0 flex-1 truncate text-sm font-semibold text-ink hover:underline">
           {order.shop.name}
         </Link>
-        <span className="shrink-0 text-xs text-ink/45">{new Date(order.createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</span>
+        <span className="shrink-0 text-xs text-ink-faint">{new Date(order.createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</span>
       </div>
 
       {isBad ? (
         <div className="mx-4 mt-4 rounded-card bg-rose-50 p-4 text-rose-700">
           <p className="flex items-center gap-2 font-display text-sm font-bold">
-            <IconX size={16} />
+            <X size={16} />
             {order.status === 'CANCELLED_BY_CUSTOMER' && 'You cancelled this order'}
             {order.status === 'REJECTED_BY_SHOP' && 'The shop couldn’t fulfil this order'}
             {order.status === 'EXPIRED' && 'This reservation expired, uncollected'}
@@ -108,12 +106,12 @@ export default function OrderDetail() {
                 <li key={step.status} className="flex flex-1 flex-col items-center gap-1.5 last:flex-none">
                   <div className="flex w-full items-center">
                     {i > 0 && <span className={cn('h-0.5 flex-1', i <= currentStepIndex ? 'bg-brand' : 'bg-black/10')} />}
-                    <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full', done ? 'bg-brand text-white' : 'bg-black/5 text-ink/30')}>
+                    <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full', done ? 'bg-brand text-white' : 'bg-black/5 text-ink-faint')}>
                       <step.Icon size={15} />
                     </span>
                     {i < steps.length - 1 && <span className={cn('h-0.5 flex-1', i < currentStepIndex ? 'bg-brand' : 'bg-black/10')} />}
                   </div>
-                  <span className={cn('text-center text-[10px] font-medium', done ? 'text-ink' : 'text-ink/35')}>{step.label}</span>
+                  <span className={cn('text-center text-[10px] font-medium', done ? 'text-ink' : 'text-ink-faint')}>{step.label}</span>
                 </li>
               )
             })}
@@ -140,14 +138,14 @@ export default function OrderDetail() {
       )}
 
       <div className="mx-4 mt-4 rounded-card bg-white p-4 shadow-soft">
-        <h2 className="mb-2 text-xs font-bold uppercase tracking-wide text-ink/45">Items</h2>
+        <h2 className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-faint">Items</h2>
         <ul className="flex flex-col divide-y divide-black/5">
           {order.items.map((item) => (
             <li key={item.id} className="flex items-center gap-3 py-2.5">
               <img src={item.imageUrl ?? undefined} alt="" className="h-11 w-11 shrink-0 rounded-lg bg-brand-50 object-contain p-1" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm text-ink">{item.productNameSnapshot}</p>
-                <p className="text-xs text-ink/45">{item.quantity} × {item.unitLabelSnapshot} · {formatRupees(item.unitPrice)}</p>
+                <p className="text-xs text-ink-faint">{item.quantity} × {item.unitLabelSnapshot} · {formatRupees(item.unitPrice)}</p>
               </div>
               <span className="shrink-0 text-sm font-semibold text-ink">{formatRupees(item.lineTotal)}</span>
             </li>
@@ -178,16 +176,16 @@ function ReviewSection({ orderId, existingReview }: { orderId: string; existingR
 
   return (
     <div className="mx-4 mt-4 rounded-card bg-white p-4 shadow-soft">
-      <h2 className="mb-2 text-xs font-bold uppercase tracking-wide text-ink/45">{existingReview ? 'Your review' : 'Rate this shop'}</h2>
+      <h2 className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-faint">{existingReview ? 'Your review' : 'Rate this shop'}</h2>
       <StarRating value={rating} onChange={existingReview ? undefined : setRating} readOnly={!!existingReview} size={24} />
       {existingReview ? (
-        existingReview.comment && <p className="mt-2 text-sm text-ink/70">“{existingReview.comment}”</p>
+        existingReview.comment && <p className="mt-2 text-sm text-ink-muted">“{existingReview.comment}”</p>
       ) : (
         <>
           <textarea
             value={comment} onChange={(e) => setComment(e.target.value)} rows={2}
             placeholder="How was it? (optional)"
-            className="mt-3 w-full resize-none rounded-2xl border border-black/10 p-3 text-sm placeholder:text-ink/40 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            className="mt-3 w-full resize-none rounded-2xl border border-black/10 p-3 text-sm placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
           <Button size="sm" className="mt-2" disabled={rating === 0} loading={mutation.isPending} onClick={() => mutation.mutate()}>
             Submit review
@@ -227,7 +225,7 @@ function DisputeSection({ orderId }: { orderId: string }) {
 
       <Sheet open={open} onClose={() => setOpen(false)} title="Raise a dispute">
         <fieldset className="flex flex-col gap-2">
-          <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink/45">What went wrong?</legend>
+          <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink-faint">What went wrong?</legend>
           {DISPUTE_REASONS.map((r) => (
             <label key={r.value} className={cn('flex cursor-pointer items-center gap-2.5 rounded-xl border p-3 text-sm', reason === r.value ? 'border-brand bg-brand-50' : 'border-black/10')}>
               <input type="radio" name="dispute-reason" checked={reason === r.value} onChange={() => setReason(r.value)} className="accent-brand" />
@@ -238,7 +236,7 @@ function DisputeSection({ orderId }: { orderId: string }) {
         <textarea
           value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
           placeholder="Tell us more (required)"
-          className="mt-3 w-full resize-none rounded-2xl border border-black/10 p-3 text-sm placeholder:text-ink/40 focus:outline-none focus:ring-2 focus:ring-brand-500"
+          className="mt-3 w-full resize-none rounded-2xl border border-black/10 p-3 text-sm placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
         <Button fullWidth className="mt-3" disabled={description.trim().length < 5} loading={mutation.isPending} onClick={() => mutation.mutate()}>
           Submit dispute

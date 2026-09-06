@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <!--
+    App-icon lockup of the ShopNear mark: the same storefront-in-a-pin as
+    src/components/ui/Logo.tsx, but inverted onto a solid brand tile.
+
+    A tab strip can be light or dark, so the icon brings its own ground rather
+    than relying on the browser's. Everything here is deliberately chunky —
+    at 16px only the pin silhouette and the awning band survive, and that is
+    enough to recognise it. Kept in sync with the generated PNG/ICO rasters
+    alongside it.
+  -->
+  <rect width="48" height="48" rx="10.5" fill="#7B2FBE"/>
+  <g fill="#FFFFFF">
+    <circle cx="24" cy="19.2" r="14.16"/>
+    <path d="M11.68 26.28h24.64L24 41.52z"/>
+  </g>
+  <rect x="16.78" y="15.43" width="14.44" height="10.48" fill="#7B2FBE"/>
+  <rect x="15.91" y="11.87" width="16.18" height="3.56" fill="#EA580C"/>
+  <rect x="21.55" y="20.04" width="4.9" height="5.87" fill="#FFFFFF"/>
+</svg>

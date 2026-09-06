@@ -1,100 +1,151 @@
 import { useState } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
+import { Plus, Minus, Trash2 } from 'lucide-react'
 import type { Product, Offer, ShopSummary } from '@shopnear/shared'
 import { useCart, CartConflictError } from '@/state/CartContext'
 import { useToast } from '@/components/ui/Toast'
 import { Sheet } from '@/components/ui/Sheet'
 import { Button } from '@/components/ui/Button'
-import { IconPlus, IconMinus } from '@/components/ui/Icon'
+import { useAppMotion } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 
 interface AddToCartControlProps {
   shop: ShopSummary
   product: Product
   offer: Offer
-  size?: 'sm' | 'md'
+  size?: 'sm' | 'md' | 'lg'
+  fullWidth?: boolean
   className?: string
 }
 
-/** The signature quick-commerce interaction: an ADD pill that flips in place
- * into a stepper on tap. Reserve semantics, not "buy now" — but the tactile
- * feel should match Blinkit/Zepto exactly. */
-export function AddToCartControl({ shop, product, offer, size = 'md', className }: AddToCartControlProps) {
+const SIZES = {
+  sm: { box: 'h-8 min-w-[4.25rem]', text: 'text-xs', icon: 13 },
+  md: { box: 'h-9 min-w-[5rem]', text: 'text-sm', icon: 15 },
+  lg: { box: 'h-12 min-w-[7rem]', text: 'text-base', icon: 18 },
+} as const
+
+/**
+ * The signature quick-commerce interaction: an ADD pill that flips in place
+ * into a stepper. Reserve semantics rather than "buy now", but the tactile
+ * feel — spring on press, the count popping as it changes, the control keeping
+ * its footprint so the grid never reflows — should match what people already
+ * have muscle memory for.
+ */
+export function AddToCartControl({
+  shop, product, offer, size = 'md', fullWidth, className,
+}: AddToCartControlProps) {
   const cart = useCart()
   const toast = useToast()
+  const m = useAppMotion()
   const [conflictShop, setConflictShop] = useState<ShopSummary | null>(null)
   const qty = cart.quantityFor(product.id)
-  const disabled = offer.availability === 'OUT_OF_STOCK'
-
-  const height = size === 'sm' ? 'h-8' : 'h-9'
-  const width = size === 'sm' ? 'w-16' : 'w-20'
+  const outOfStock = offer.availability === 'OUT_OF_STOCK'
+  const s = SIZES[size]
 
   function tryAdd(force = false) {
     try {
       cart.addItem(shop, product, offer, { force })
-      if (force) toast.show(`Started a new cart for ${shop.name}`, 'success')
+      if (force) toast.show(`Started a new cart at ${shop.name}`, 'success')
     } catch (e) {
-      if (e instanceof CartConflictError) {
-        setConflictShop(e.incomingShop)
-      } else {
-        toast.show('Could not add to cart', 'error')
-      }
+      if (e instanceof CartConflictError) setConflictShop(e.incomingShop)
+      else toast.show('Could not add to cart', 'error')
     }
   }
 
   return (
     <>
-      <div className={cn('inline-flex', className)}>
-        {qty === 0 ? (
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => tryAdd()}
-            className={cn(
-              height, width,
-              'rounded-full border border-brand-200 bg-brand-50 text-sm font-bold text-brand-700',
-              'transition-all active:scale-90 animate-pop-in',
-              'hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500',
-              'disabled:cursor-not-allowed disabled:border-black/5 disabled:bg-gray-100 disabled:text-gray-400',
-            )}
-          >
-            {disabled ? 'Notify' : 'ADD'}
-          </button>
-        ) : (
-          <div
-            className={cn(
-              height, width,
-              'flex animate-pop-in items-center justify-between rounded-full bg-brand text-white shadow-soft',
-            )}
-          >
-            <button
+      <div className={cn('inline-flex', fullWidth && 'w-full', className)}>
+        <AnimatePresence mode="popLayout" initial={false}>
+          {qty === 0 ? (
+            <motion.button
+              key="add"
               type="button"
-              aria-label="Decrease quantity"
-              onClick={() => cart.setQuantity(product.id, qty - 1)}
-              className="flex h-full flex-1 items-center justify-center active:scale-90 focus-visible:outline-none"
-            >
-              <IconMinus size={14} />
-            </button>
-            <span className="min-w-[1.2rem] text-center text-sm font-bold tabular-nums">{qty}</span>
-            <button
-              type="button"
-              aria-label="Increase quantity"
+              disabled={outOfStock}
               onClick={() => tryAdd()}
-              className="flex h-full flex-1 items-center justify-center active:scale-90 focus-visible:outline-none"
+              whileTap={outOfStock ? undefined : m.tap}
+              initial={m.reduced ? { opacity: 0 } : { opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={m.reduced ? { opacity: 0 } : { opacity: 0, scale: 0.85 }}
+              transition={m.transition}
+              className={cn(
+                s.box, s.text, fullWidth && 'w-full',
+                'rounded-pill border-[1.5px] font-black uppercase tracking-wide',
+                'flex items-center justify-center gap-1',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1',
+                outOfStock
+                  ? 'cursor-not-allowed border-black/5 bg-canvas-sunken text-ink-faint'
+                  : 'border-brand-200 bg-brand-50 text-brand-700 hover:border-brand-300 hover:bg-brand-100',
+              )}
             >
-              <IconPlus size={14} />
-            </button>
-          </div>
-        )}
+              {outOfStock ? 'Notify' : 'Add'}
+              {!outOfStock && <Plus size={s.icon} strokeWidth={3} aria-hidden />}
+            </motion.button>
+          ) : (
+            <motion.div
+              key="stepper"
+              initial={m.reduced ? { opacity: 0 } : { opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={m.reduced ? { opacity: 0 } : { opacity: 0, scale: 0.85 }}
+              transition={m.transition}
+              className={cn(
+                s.box, fullWidth && 'w-full',
+                'flex items-center justify-between rounded-pill bg-brand text-white shadow-soft',
+              )}
+            >
+              <button
+                type="button"
+                aria-label={qty === 1 ? `Remove ${product.name}` : `Decrease ${product.name}`}
+                onClick={() => cart.setQuantity(product.id, qty - 1)}
+                className="flex h-full flex-1 items-center justify-center rounded-l-pill transition-colors hover:bg-white/10 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
+              >
+                {qty === 1
+                  ? <Trash2 size={s.icon} aria-hidden />
+                  : <Minus size={s.icon} strokeWidth={3} aria-hidden />}
+              </button>
+
+              <span className="relative min-w-[1.5rem] overflow-hidden text-center">
+                <AnimatePresence mode="popLayout" initial={false}>
+                  <motion.span
+                    key={qty}
+                    initial={m.reduced ? { opacity: 0 } : { y: 12, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={m.reduced ? { opacity: 0 } : { y: -12, opacity: 0 }}
+                    transition={{ duration: 0.16 }}
+                    className={cn('block font-black tabular-nums', s.text)}
+                  >
+                    {qty}
+                  </motion.span>
+                </AnimatePresence>
+              </span>
+
+              <button
+                type="button"
+                aria-label={`Increase ${product.name}`}
+                onClick={() => tryAdd()}
+                className="flex h-full flex-1 items-center justify-center rounded-r-pill transition-colors hover:bg-white/10 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
+              >
+                <Plus size={s.icon} strokeWidth={3} aria-hidden />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      <Sheet open={!!conflictShop} onClose={() => setConflictShop(null)} title="Start a new cart?">
-        <p className="text-sm text-ink/70">
-          Your cart has items from <strong>{cart.shop?.name}</strong>. ShopNear reserves at one shop at a
-          time — adding this will clear your cart and start a fresh reservation at{' '}
-          <strong>{conflictShop?.name}</strong>.
+      <Sheet
+        open={!!conflictShop}
+        onClose={() => setConflictShop(null)}
+        title="Start a new cart?"
+        description="ShopNear reserves at one shop at a time."
+      >
+        <p className="text-sm leading-relaxed text-ink-muted">
+          Your cart has items from <strong className="text-ink">{cart.shop?.name}</strong>. Adding this
+          will clear it and start a fresh reservation at{' '}
+          <strong className="text-ink">{conflictShop?.name}</strong>.
         </p>
         <div className="mt-5 flex gap-3">
-          <Button variant="outline" fullWidth onClick={() => setConflictShop(null)}>Keep current cart</Button>
+          <Button variant="outline" fullWidth onClick={() => setConflictShop(null)}>
+            Keep current cart
+          </Button>
           <Button
             fullWidth
             onClick={() => {

@@ -6,7 +6,7 @@ import { useAuth } from '@/state/AuthContext'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useToast } from '@/components/ui/Toast'
-import { IconPhone, IconX, IconChevronLeft } from '@/components/ui/Icon'
+import { ChevronLeft, Phone, X } from 'lucide-react'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -43,13 +43,13 @@ export default function Login() {
   return (
     <div className="mx-auto flex min-h-dvh max-w-lg flex-col bg-gradient-to-b from-brand-50 via-white to-white px-6 pb-10 pt-[calc(1.5rem+env(safe-area-inset-top))]">
       <button onClick={() => (step === 'otp' ? setStep('phone') : navigate(-1))} aria-label="Back" className="mb-6 flex h-9 w-9 items-center justify-center rounded-full hover:bg-brand-50">
-        <IconChevronLeft size={22} />
+        <ChevronLeft size={22} />
       </button>
 
       {step === 'phone' ? (
         <>
           <h1 className="font-display text-2xl font-bold text-ink">Log in to ShopNear</h1>
-          <p className="mt-1 text-sm text-ink/55">We'll send a one-time code to verify your number.</p>
+          <p className="mt-1 text-sm text-ink-muted">We'll send a one-time code to verify your number.</p>
           <form
             className="mt-8 flex flex-col gap-4"
             onSubmit={(e) => {
@@ -62,7 +62,7 @@ export default function Login() {
             }}
           >
             <Input
-              leftIcon={<IconPhone size={17} />} inputMode="numeric" maxLength={10} autoFocus
+              leftIcon={<Phone size={17} />} inputMode="numeric" maxLength={10} autoFocus
               placeholder="10-digit mobile number" value={phone}
               onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
             />
@@ -72,7 +72,7 @@ export default function Login() {
       ) : (
         <>
           <h1 className="font-display text-2xl font-bold text-ink">Enter the OTP</h1>
-          <p className="mt-1 text-sm text-ink/55">Sent to +91 {phone}</p>
+          <p className="mt-1 text-sm text-ink-muted">Sent to +91 {phone}</p>
 
           {!devBannerDismissed && (
             <div className="mt-4 flex items-center gap-2 rounded-2xl border border-dashed border-brand-300 bg-brand-50 p-3.5 text-xs">
@@ -80,7 +80,7 @@ export default function Login() {
                 <strong>Demo mode:</strong> the OTP is always <span className="font-mono font-bold">{devOtp}</span>
               </span>
               <button onClick={() => setDevBannerDismissed(true)} aria-label="Dismiss" className="shrink-0 text-brand-400 hover:text-brand-700">
-                <IconX size={15} />
+                <X size={15} />
               </button>
             </div>
           )}

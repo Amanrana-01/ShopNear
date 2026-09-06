@@ -382,8 +382,22 @@ export function offersForProduct(productId: string): Offer[] {
   return (ROWS_BY_PRODUCT.get(productId) ?? []).map(toOffer)
 }
 
-export function offersForShop(shopId: string): InventoryEntry[] {
+/**
+ * The one and only source of ShopItems.
+ *
+ * Nothing else in the app returns `InventoryEntry` — a shop's catalogue is
+ * that shop's, and it renders on that shop's page and nowhere else. Global
+ * screens work in `Product` + cross-shop `Offer`, which is a different thing:
+ * a product that several shops happen to stock, not one shop's shelves.
+ *
+ * The `r.shopId === shopId` filter is redundant against the index it reads —
+ * and deliberately kept, because it is what makes returning another shop's
+ * rows impossible rather than merely unlikely.
+ */
+export function getShopCatalogue(shopId: string): InventoryEntry[] {
+  if (!shopId) return []
   return (ROWS_BY_SHOP.get(shopId) ?? [])
+    .filter((r) => r.shopId === shopId)
     .map((r) => ({ product: PRODUCT_BY_ID.get(r.productId)!, offer: toOffer(r) }))
     .filter((e) => e.product)
 }

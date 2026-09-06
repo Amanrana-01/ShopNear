@@ -6,8 +6,8 @@ import { realClient } from './realClient'
  * Single switch point between the mock API and the real backend.
  *
  * The **mock is the default**, so `npm run dev` brings the app up fully
- * populated with no database, no API process and no network: 225 shops across
- * nine trades, ~470 products and ~21.5k offer rows, all generated from a
+ * populated with no database, no API process and no network: 297 shops across
+ * nine trades, ~470 products and ~28k offer rows, all generated from a
  * seeded PRNG in `fixtures/` so every reload yields the identical catalogue.
  *
  * Set `VITE_USE_MOCK=false` to point the app at the live backend on
