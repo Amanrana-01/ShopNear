@@ -4,6 +4,9 @@ import path from 'node:path'
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  // Root in development; mounted under /admin/ in the combined build via
+  // SHOPNEAR_BASE (see scripts/build-all.mjs).
+  base: process.env.SHOPNEAR_BASE ?? '/',
   plugins: [react()],
   resolve: {
     alias: {

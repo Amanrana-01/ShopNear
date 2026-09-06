@@ -51,7 +51,9 @@
       "registerLink": "તમારી દુકાન રજિસ્ટર કરો",
       "invalidCredentials": "ફોન નંબર અથવા પાસવર્ડ ખોટો છે.",
       "showPassword": "પાસવર્ડ બતાવો",
-      "hidePassword": "પાસવર્ડ છુપાવો"
+      "hidePassword": "પાસવર્ડ છુપાવો",
+      "roleShopper": "હું ખરીદદાર છું",
+      "roleMerchant": "મારી દુકાન છે"
     }
   },
   "register": {
