@@ -10,6 +10,7 @@ import { Input, FieldLabel, FieldError } from '@/components/ui/Input'
 import { Card } from '@/components/ui/Card'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { IconStore } from '@/components/ui/Icon'
+import { CUSTOMER_LOGIN_URL } from '@/lib/apps'
 
 export default function Login() {
   const { t } = useTranslation()
@@ -51,6 +52,20 @@ export default function Login() {
           <IconStore size={32} />
         </div>
         <h1 className="font-display text-2xl font-bold text-ink">{t('common.appName')}</h1>
+      </div>
+
+      {/* Mirrors the chooser on the customer login. The storefront is a
+          separate bundle, so this is a real navigation, not a router link. */}
+      <div className="mb-4 grid w-full max-w-sm grid-cols-2 gap-1 rounded-2xl bg-brand-50 p-1" role="group">
+        <a
+          href={CUSTOMER_LOGIN_URL}
+          className="rounded-xl py-2.5 text-center text-sm font-semibold text-ink/60 transition-colors hover:text-brand-700"
+        >
+          {t('auth.login.roleShopper')}
+        </a>
+        <span aria-current="true" className="rounded-xl bg-white py-2.5 text-center text-sm font-semibold text-brand-700 shadow-sm">
+          {t('auth.login.roleMerchant')}
+        </span>
       </div>
 
       <Card className="w-full max-w-sm p-6 animate-fade-in-up">

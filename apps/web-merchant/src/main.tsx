@@ -26,7 +26,9 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      {/* '/' in dev, '/merchant/' in the combined build — strip the trailing
+          slash, which React Router does not want in a basename. */}
+      <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
         <AuthProvider>
           <ShopProvider>
             <ToastProvider>

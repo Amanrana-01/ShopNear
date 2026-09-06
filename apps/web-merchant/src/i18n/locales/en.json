@@ -51,7 +51,9 @@
       "registerLink": "Register your shop",
       "invalidCredentials": "Phone number or password is incorrect.",
       "showPassword": "Show password",
-      "hidePassword": "Hide password"
+      "hidePassword": "Hide password",
+      "roleShopper": "I’m shopping",
+      "roleMerchant": "I run a shop"
     }
   },
   "register": {

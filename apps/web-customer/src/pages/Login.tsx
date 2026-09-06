@@ -6,6 +6,7 @@ import { useAuth } from '@/state/AuthContext'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useToast } from '@/components/ui/Toast'
+import { MERCHANT_LOGIN_URL } from '@/lib/apps'
 import { ChevronLeft, Phone, X } from 'lucide-react'
 
 export default function Login() {
@@ -48,6 +49,21 @@ export default function Login() {
 
       {step === 'phone' ? (
         <>
+          {/* Role is chosen here rather than on a separate landing screen, so
+              browsing costs no extra tap. The shop console is a different
+              bundle, hence a real link rather than a router navigation. */}
+          <div className="mb-6 grid grid-cols-2 gap-1 rounded-2xl bg-brand-50 p-1" role="group" aria-label="Sign in as">
+            <span aria-current="true" className="rounded-xl bg-white py-2.5 text-center text-sm font-semibold text-brand-700 shadow-sm">
+              I&rsquo;m shopping
+            </span>
+            <a
+              href={MERCHANT_LOGIN_URL}
+              className="rounded-xl py-2.5 text-center text-sm font-semibold text-ink-muted transition-colors hover:text-brand-700"
+            >
+              I run a shop
+            </a>
+          </div>
+
           <h1 className="font-display text-2xl font-bold text-ink">Log in to ShopNear</h1>
           <p className="mt-1 text-sm text-ink-muted">We'll send a one-time code to verify your number.</p>
           <form
